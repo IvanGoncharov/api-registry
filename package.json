@@ -1,0 +1,31 @@
+{
+  "name": "api-registry",
+  "version": "1.0.0",
+  "description": "Own-label API registry",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "API",
+    "registry",
+    "directory",
+    "portal"
+  ],
+  "author": "Mike Ralphson",
+  "license": "MIT",
+  "dependencies": {
+    "deep-sort-object": "^1.0.2",
+    "deepmerge": "^4.2.2",
+    "fetch-filecache-for-crawling": "^4.0.2",
+    "mkdirp": "^1.0.4",
+    "node-readfiles": "^0.2.0",
+    "oas-resolver": "^2.4.0",
+    "oas-validator": "^4.0.5",
+    "remove-markdown": "^0.3.0",
+    "swagger2openapi": "^6.1.1",
+    "tiny-opts-parser": "0.0.3",
+    "urijs": "^1.19.2",
+    "yaml": "^1.10.0"
+  }
+}
