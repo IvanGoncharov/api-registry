@@ -103,14 +103,16 @@ const commands = {
       response = await res.buffer();
     }
     const logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
-    fs.writeFileSync(path.join(logoPath,logoName),response.body);
+    if (response.body) {
+      fs.writeFileSync(path.join(logoPath,logoName),response.body);
+    }
 
     if (!o.info['x-logo']) o.info['x-logo'] = {};
     o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
 
     s = yaml.stringify(o);
     const j = JSON.stringify(o,null,2);
-    const filename = candidate.md.openapi ? 'openapi.' : 'swagger.';
+    const filename = candidate.md.openapi.startsWith('3.') ? 'openapi.' : 'swagger.';
     let filepath = path.resolve('.','deploy','v2','specs');
     filepath = path.join(filepath,candidate.provider,candidate.service,candidate.version);
     await mkdirp(filepath);
