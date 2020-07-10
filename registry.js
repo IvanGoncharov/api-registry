@@ -70,6 +70,10 @@ const commands = {
     console.log('git');
     return true;
   },
+  urls: async function(candidate) {
+    console.log();
+    console.log(ng.colour.yellow+candidate.md.source.url+ng.colour.normal);
+  },
   rewrite: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
