@@ -31,23 +31,23 @@ async function validateObj(o,s,candidate) {
   let result = { valid: false };
   try {
     if (o.swagger && o.swagger == '2.0') {
-      console.log('  converting');
+      process.stdout.write('c');
       await s2o.convertObj(o, valOpt);
       o = valOpt.openapi;
     }
-    console.log('  validating');
+    process.stdout.write('v');
     await validator.validate(o, valOpt);
     result = valOpt;
     if (!result.valid) throw new Error('Validation failure');
   }
   catch (ex) {
+    console.log();
     console.warn(ng.colour.red+ex.message+ng.colour.normal);
     if (valOpt.context) {
       console.warn(ng.colour.red+valOpt.context.pop()+ng.colour.normal);
     }
   }
-  console.log('  ',result.valid ? ng.colour.green : ng.colour.red,result.valid,ng.colour.normal);
-  //if (!result.valid) process.exitCode = 1;
+  console.log('',result.valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
   candidate.md.valid = result.valid;
   return result.valid;
 }
@@ -58,18 +58,21 @@ async function fix(candidate, o) {
 
 const commands = {
   populate: async function(candidate) {
+    console.log('pop');
     return true;
   },
   git: async function(candidate) {
     const dates = ng.exec(`git log --format=%aD --follow -- '${candidate.md.filename}'`).toString().split('\n');
     candidate.md.added = new Date(dates[dates.length-2]);
     candidate.md.updated = new Date(dates[0]);
+    console.log('git');
     return true;
   },
   rewrite: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
     fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
+    console.log('rw');
   },
   cache: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
@@ -83,6 +86,7 @@ const commands = {
 
     origin.push(source);
     fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
+    console.log('cache');
   },
   deploy: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
@@ -118,6 +122,7 @@ const commands = {
     await mkdirp(filepath);
     fs.writeFileSync(path.join(filepath,filename+'yaml'),s,'utf8');
     fs.writeFileSync(path.join(filepath,filename+'json'),j,'utf8');
+    console.log('deploy');
     return true;
   },
   validate: async function(candidate) {
@@ -133,7 +138,7 @@ const commands = {
     try {
       let s;
       if (u.startsWith('http')) {
-        console.log('  fetching');
+        process.stdout.write('f');
         const response = await fetch(u, {logToConsole:false, cacheFolder: mainCache});
         if (response.ok) {
           s = await response.text();
@@ -160,6 +165,10 @@ const commands = {
       const result = await validateObj(o,s,candidate);
       if (result) {
         o = deepmerge(candidate.md.patch,o);
+        delete o.info.logo; // TODO nytimes hack (masked by conv stage)
+        if (o.info['x-apisguru-categories']) {
+          o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
+        }
         o.info['x-providerName'] = candidate.provider;
         const origin = ng.clone(candidate.md.history);
         origin.push(candidate.md.source);
@@ -200,7 +209,7 @@ const commands = {
 
 async function main(command, pathspec) {
   ng.loadMetadata();
-  const apis = await ng.gather(pathspec, false);
+  const apis = await ng.gather(pathspec, argv.slow);
   console.log(Object.keys(apis).length,'APIs found');
   ng.populateMetadata(apis);
   ng.runDrivers();
@@ -214,7 +223,7 @@ async function main(command, pathspec) {
       valOpt.cache = {};
       oldProvider = candidate.provider;
     }
-    console.log(candidate.provider,candidate.driver,candidate.service,candidate.version);
+    process.stdout.write(candidate.provider+' '+candidate.driver+' '+candidate.service+' '+candidate.version+' ');
     await commands[command](candidate);
     delete valOpt.cache[valOpt.source];
     //let voa = analyseOpt(valOpt);
