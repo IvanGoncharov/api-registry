@@ -33,11 +33,11 @@ async function validateObj(o,s,candidate) {
   let result = { valid: false };
   try {
     if (o.swagger && o.swagger == '2.0') {
-      process.stdout.write('c');
+      process.stdout.write('C');
       await s2o.convertObj(o, valOpt);
       o = valOpt.openapi;
     }
-    process.stdout.write('v');
+    process.stdout.write('V');
     await validator.validate(o, valOpt);
     result = valOpt;
     if (!result.valid) throw new Error('Validation failure');
@@ -141,11 +141,11 @@ const commands = {
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
     // TODO github, google, apisjson etc
-    let response = {};
+    let response = { status: 200 };
     try {
       let s;
       if (u.startsWith('http')) {
-        process.stdout.write('f');
+        process.stdout.write('F');
         response = await fetch(u, {logToConsole:false, cacheFolder: mainCache});
         if (response.ok) {
           s = await response.text();
@@ -158,37 +158,51 @@ const commands = {
       else {
         s = fs.readFileSync(u,'utf8');
       }
-      let o = yaml.parse(s);
-      if (o.info && o.info.version !== candidate.version) {
-        console.log('  Updated to',o.info.version);
-        candidate.parent[o.info.version] = candidate.parent[candidate.version];
-        delete candidate.parent[candidate.version];
-        const ofname = candidate.md.filename;
-        candidate.md.filename = candidate.md.filename.replace(candidate.version,o.info.version);
-        const pathname = path.dirname(candidate.md.filename);
-        mkdirp.sync(pathname);
-        ng.exec('mv '+ofname+' '+candidate.md.filename);
-      }
-      const result = await validateObj(o,s,candidate);
-      if (result) {
-        o = deepmerge(candidate.md.patch,o);
-        delete o.info.logo; // TODO nytimes hack (masked by conv stage)
-        if (o.info['x-apisguru-categories']) {
-          o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
+      let o = {};
+      if (response.status === 200) {
+        o = yaml.parse(s);
+        const result = await validateObj(o,s,candidate);
+        if (result) {
+          if (o.info && o.info.version !== candidate.version) {
+            console.log('  Updated to',o.info.version);
+            candidate.parent[o.info.version] = candidate.parent[candidate.version];
+            delete candidate.parent[candidate.version];
+            const ofname = candidate.md.filename;
+            candidate.md.filename = candidate.md.filename.replace(candidate.version,o.info.version);
+            if (o.openapi) candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
+            const pathname = path.dirname(candidate.md.filename);
+            mkdirp.sync(pathname);
+            ng.exec('mv '+ofname+' '+candidate.md.filename);
+          }
+          o = deepmerge(candidate.md.patch,o);
+          delete o.info.logo; // TODO nytimes hack (masked by conv stage)
+          if (o.info['x-apisguru-categories']) {
+            o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
+          }
+          o.info['x-providerName'] = candidate.provider;
+          const origin = ng.clone(candidate.md.history);
+          origin.push(candidate.md.source);
+          o.info['x-origin'] = origin;
+          if (candidate.service) o.info['x-serviceName'] = candidate.service;
+          if (typeof candidate.md.preferred !== 'undefined') o.info['x-preferred'] = candidate.md.preferred;
+          const content = yaml.stringify(ng.sortJson(o));
+          fs.writeFile(candidate.md.filename,content,'utf8',function(err){
+            if (err) console.warn(err);
+          });
+          const newHash = ng.sha256(content);
+          if (candidate.md.hash !== newHash) {
+            candidate.md.hash = newHash;
+            candidate.md.updated = ng.now;
+          }
+          delete candidate.md.statusCode;
         }
-        o.info['x-providerName'] = candidate.provider;
-        const origin = ng.clone(candidate.md.history);
-        origin.push(candidate.md.source);
-        o.info['x-origin'] = origin;
-        if (candidate.service) o.info['x-serviceName'] = candidate.service;
-        if (typeof candidate.md.preferred !== 'undefined') o.info['x-preferred'] = candidate.md.preferred;
-        fs.writeFile(candidate.md.filename,yaml.stringify(ng.sortJson(o)),'utf8',function(err){
-          if (err) console.warn(err);
-        });
-        candidate.md.updated = ng.now;
-        delete candidate.md.statusCode;
+        else { // if not valid
+          return false;
+        }
       }
-      else {
+      else { // if not status 200 OK
+        console.log(ng.colour.red,response.status,ng.colour.normal);
+        console.log();
         return false;
       }
     }
