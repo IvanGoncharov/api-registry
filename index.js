@@ -3,6 +3,7 @@
 'use strict';
 
 const cp = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,6 +24,10 @@ let metadata = {};
 function exec(command) {
   console.log(colour.yellow+command+colour.normal);
   return cp.execSync(command);
+}
+
+function sha256(s) {
+  return crypto.createHash('sha256').update(s).digest('hex');
 }
 
 const driverFuncs = {
@@ -116,8 +121,9 @@ async function gather(pathspec, slow) {
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
       const obj = yaml.parse(content);
+      const hash = sha256(content);
       if (obj) {
-        apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info };
+        apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
       }
       const fdir = path.dirname(filename);
       if (slow) {
@@ -167,7 +173,7 @@ function populateMetadata(apis) {
     const origin = api.info['x-origin'] || [ {} ];
     const source = origin.pop();
     const history = api.info['x-origin'];
-    const entry = { name, openapi, preferred, filename, source, history, run: true, runDate: now };
+    const entry = { name, openapi, preferred, filename, source, history, hash: api.hash, run: true, runDate: now };
     if (api.patch && Object.keys(api.patch).length) {
       entry.patch = api.patch;
     }
@@ -175,6 +181,10 @@ function populateMetadata(apis) {
     if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
     if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
+    if (!metadata[providerName].apis[serviceName][version].added) {
+      metadata[providerName].apis[serviceName][version].added = now;
+    }
+
     let driverProviders = drivers.get(metadata[providerName].driver);
     if (driverProviders) {
       driverProviders.set(providerName,metadata[providerName]);
@@ -221,6 +231,7 @@ module.exports = {
   sortJson,
   clone,
   exec,
+  sha256,
   now,
   loadMetadata,
   saveMetadata,
