@@ -4,6 +4,7 @@
   "description": "Own-label API registry",
   "main": "index.js",
   "scripts": {
+    "lint": "npx eslint *.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
