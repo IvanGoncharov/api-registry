@@ -141,11 +141,12 @@ const commands = {
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
     // TODO github, google, apisjson etc
+    let response = {};
     try {
       let s;
       if (u.startsWith('http')) {
         process.stdout.write('f');
-        const response = await fetch(u, {logToConsole:false, cacheFolder: mainCache});
+        response = await fetch(u, {logToConsole:false, cacheFolder: mainCache});
         if (response.ok) {
           s = await response.text();
         }
@@ -193,10 +194,14 @@ const commands = {
     }
     catch (ex) {
       if (ex.timings) delete ex.timings;
-      console.warn(ex.message,ex.response ? ex.response.statusCode : '');
-      console.warn(ex);
-      if (ex.response) {
-        candidate.md.statusCode = ex.response.statusCode;
+      console.log();
+      console.warn(ng.colour.red+ex.message,ex.response ? ex.response.statusCode : '',ng.colour.normal);
+      if (!ex.message) console.warn(ex);
+      let r = ex.response || response;
+      if (r) {
+        console.log(r);
+        candidate.md.statusCode = r.status;
+        candidate.md.mediatype = r.headers.get('content-type');
       }
       return false;
     }
