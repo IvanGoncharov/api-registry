@@ -4,6 +4,7 @@ const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const deepmerge = require('deepmerge');
 const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
@@ -119,17 +120,17 @@ async function gather(pathspec, slow) {
       const fdir = path.dirname(filename);
       if (slow) {
         let patch = {};
-        let patchfile = path.join(fdir,'..','..','patch.yaml');
+        let patchfile = path.join(fdir,'patch.yaml');
         if (fs.existsSync(patchfile)) {
           patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
         }
         patchfile = path.join(fdir,'..','patch.yaml');
         if (fs.existsSync(patchfile)) {
-          patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
+          patch = deepmerge(patch,yaml.parse(fs.readFileSync(patchfile,'utf8')));
         }
-        patchfile = path.join(fdir,'patch.yaml');
+        patchfile = path.join(fdir,'..','..','patch.yaml');
         if (fs.existsSync(patchfile)) {
-          patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
+          patch = deepmerge(patch,yaml.parse(fs.readFileSync(patchfile,'utf8')));
         }
         if (Object.keys(patch).length) apis[filename].patch = patch;
       }
