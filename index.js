@@ -159,7 +159,7 @@ function populateMetadata(apis) {
 
   for (let filename in apis) {
     const api = apis[filename];
-    filename = path.resolve(filename);
+    filename = path.relative('.',filename);
     const comp = filename.split('/');
     const name = comp.pop();
     const openapi = api.openapi ? api.openapi : api.swagger;
@@ -198,24 +198,26 @@ function populateMetadata(apis) {
   return metadata;
 }
 
-async function runDrivers() {
+async function runDrivers(only) {
   for (let driver of drivers.keys()) {
     const providers = drivers.get(driver);
     for (let provider of providers.keys()) {
-      console.log('Running driver',driver,'for',provider);
-      await driverFuncs[driver](provider,providers.get(provider));
+      if (!only || driver === only) {
+        console.log('Running driver',driver,'for',provider);
+        await driverFuncs[driver](provider,providers.get(provider));
+      }
     }
   }
   return drivers;
 }
 
-function getCandidates() {
+function getCandidates(override) {
   const result = [];
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
-        if (metadata[provider].apis[service][version].run) {
+        if ((override && override === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
           const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], md: metadata[provider].apis[service][version] };
           result.push(entry);
         }
