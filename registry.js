@@ -8,6 +8,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 const url = require('url');
+const util = require('util');
 
 const deepmerge = require('deepmerge');
 const fetch = require('fetch-filecache-for-crawling');
@@ -27,7 +28,8 @@ const mainCache = path.resolve('.','metadata','main.cache');
 
 const argv = require('tiny-opts-parser')(process.argv);
 const resOpt = { resolve: true };
-const valOpt = { patch: true, anchors: true, validateSchema: 'never', resolve: false };
+const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false };
+const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 
 //Disable check of SSL certificates
 //process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
@@ -56,9 +58,12 @@ async function validateObj(o,s,candidate) {
   catch (ex) {
     console.log();
     console.warn(ng.colour.red+ex.message+ng.colour.normal);
+    let context;
     if (valOpt.context) {
-      console.warn(ng.colour.red+valOpt.context.pop()+ng.colour.normal);
+      context = valOpt.context.pop();
+      console.warn(ng.colour.red+context+ng.colour.normal);
     }
+    ng.fail(candidate,null,ex,context);
   }
   console.log('',result.valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
   candidate.md.valid = result.valid;
@@ -115,6 +120,7 @@ const commands = {
     }
     const logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
     const logoFull = path.join(logoPath,logoName);
+    let colour = ng.colour.green;
     if (!fs.existsSync(logoFull)) { // if we have not deployed this logo yet
       let response;
       try {
@@ -122,6 +128,7 @@ const commands = {
         response = await res.buffer();
       }
       catch (ex) {
+        colour = ng.colour.red;
         console.warn(ng.colour.red+ex.message+ng.colour.normal);
         const res = await fetch(defaultLogo, {timeout:1000, agent:agent(defaultLogo), cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
@@ -130,6 +137,7 @@ const commands = {
         fs.writeFileSync(logoFull,response);
       }
     }
+    process.stdout.write(colour+'📷'+ng.colour.normal);
 
     if (!o.info['x-logo']) o.info['x-logo'] = {};
     o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
@@ -150,6 +158,17 @@ const commands = {
     const o = yaml.parse(s);
     return await validateObj(o,s,candidate);
   },
+  ci: async function(candidate) {
+    const diff = Math.round(Math.abs((ng.now - new Date(candidate.md.updated)) / dayMs));
+    if (diff <= 2.0) {
+      const s = fs.readFileSync(candidate.md.filename,'utf8');
+      const o = yaml.parse(s);
+      return await validateObj(o,s,candidate);
+    }
+    else {
+      console.log(ng.colour.yellow+'🕓'+ng.colour.normal);
+    }
+  },
   update: async function(candidate) {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
@@ -169,22 +188,27 @@ const commands = {
         const filename = url.fileURLToPath(u);
         s = fs.readFileSync(filename,'utf8');
         response.status = 200;
+        response.ok = true;
       }
       else {
         s = fs.readFileSync(u,'utf8');
       }
       let o = {};
-      if (response.status === 200) {
+      if (response.ok) {
         o = yaml.parse(s);
         const result = await validateObj(o,s,candidate);
         if (result) {
           if (o.info && o.info.version === '') {
             o.info.version = '1.0.0';
           }
-          if (o.info && o.info.version !== candidate.version) {
-            console.log('  Updated to',o.info.version);
-            candidate.parent[o.info.version] = candidate.parent[candidate.version];
-            delete candidate.parent[candidate.version];
+          let openapiVer = (o.openapi ? o.openapi : o.swagger);
+          if (o.info && (o.info.version !== candidate.version) || (openapiVer !== candidate.md.openapi)) {
+            console.log('  Updated to',o.info.version,openapiVer);
+            if (o.info.version !== candidate.version) {
+              candidate.parent[o.info.version] = candidate.parent[candidate.version];
+              delete candidate.parent[candidate.version];
+            }
+            // TODO update metadata source
             const ofname = candidate.md.filename;
             candidate.md.filename = candidate.md.filename.replace(candidate.version,o.info.version);
             if (o.openapi) candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
@@ -219,6 +243,7 @@ const commands = {
         }
       }
       else { // if not status 200 OK
+        ng.fail(candidate,response.status);
         console.log(ng.colour.red,response.status,ng.colour.normal);
         console.log();
         return false;
@@ -231,12 +256,12 @@ const commands = {
       if (!ex.message) console.warn(ex);
       let r = ex.response || response;
       if (r) {
-        console.log(r);
         candidate.md.statusCode = r.status;
         if (r.headers) {
           candidate.md.mediatype = r.headers.get('content-type');
         }
       }
+      ng.fail(candidate,r ? r.status : undefined, ex, candidate.md.mediatype);
       return false;
     }
     return true;
@@ -255,12 +280,12 @@ const commands = {
 async function main(command, pathspec) {
   ng.loadMetadata();
   if (!argv.only) {
-    const apis = await ng.gather(pathspec, argv.patch);
-    console.log(Object.keys(apis).length,'APIs found');
+    const apis = await ng.gather(pathspec, command, argv.patch);
+    console.log(Object.keys(apis).length,'APIs scanned');
     ng.populateMetadata(apis);
   }
   ng.runDrivers(argv.only);
-  const candidates = ng.getCandidates(argv.only);
+  const candidates = ng.getCandidates(argv.only, ng.fastCommand(command));
   console.log(candidates.length,'candidates found');
 
   let count = 0;

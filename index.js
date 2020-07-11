@@ -6,6 +6,7 @@ const cp = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 
 const deepmerge = require('deepmerge');
 const mkdirp = require('mkdirp');
@@ -20,6 +21,7 @@ const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m' };
 
 let metadata = {};
+const failures = {};
 
 function exec(command) {
   console.log(colour.yellow+command+colour.normal);
@@ -28,6 +30,21 @@ function exec(command) {
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
+}
+
+function fail(candidate,status,err,context) {
+  if (!failures[candidate.provider]) {
+    failures[candidate.provider] = {};
+  }
+  if (!failures[candidate.provider][candidate.service]) {
+    failures[candidate.provider][candidate.service] = {};
+  }
+  failures[candidate.provider][candidate.service][candidate.version] =
+    { status, err:(err ? err.message : ''), context };
+}
+
+function fastCommand(command) {
+  return ((command === 'ci') || (command === 'deploy'));
 }
 
 const driverFuncs = {
@@ -111,13 +128,38 @@ function loadMetadata() {
 
 function saveMetadata() {
   console.log('Saving metadata...');
-  const metaStr = yaml.stringify(metadata);
-  fs.writeFileSync(path.resolve('.','metadata','registry.yaml'),metaStr,'utf8');
+  let metaStr;
+  try {
+    metaStr = yaml.stringify(metadata);
+  }
+  catch (ex) {
+    console.warn(colour.red+ex.message+colour.normal);
+    try {
+      metaStr = JSON.stringify(metadata);
+    }
+    catch (ex) {
+      console.warn(colour.red+ex.message+colour.normal);
+    }
+  }
+  if (metaStr) {
+    fs.writeFileSync(path.resolve('.','metadata','registry.yaml'),metaStr,'utf8');
+  }
+  else {
+    fs.writeFileSync(path.resolve('.','metadata','temp.js'),util.inspect(metadata,{depth:Infinity}),'utf8');
+  }
+  try {
+    fs.writeFileSync(path.resolve('.','metadata','failures.yaml'),yaml.stringify(failures),'utf8');
+  }
+  catch (ex) {
+    console.warn(colour.red+ex.message+colour.normal);
+  }
+  return (typeof metaStr === 'string');
 }
 
-async function gather(pathspec, slow) {
-  const apis = {};
+async function gather(pathspec, command, slow) {
   console.log('Gathering...');
+  const apis = {};
+  if (fastCommand(command)) return apis;
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
       const obj = yaml.parse(content);
@@ -211,13 +253,13 @@ async function runDrivers(only) {
   return drivers;
 }
 
-function getCandidates(override) {
+function getCandidates(driver, override) {
   const result = [];
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
-        if ((override && override === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
+        if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run || override) {
           const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], md: metadata[provider].apis[service][version] };
           result.push(entry);
         }
@@ -234,6 +276,8 @@ module.exports = {
   clone,
   exec,
   sha256,
+  fail,
+  fastCommand,
   now,
   loadMetadata,
   saveMetadata,
