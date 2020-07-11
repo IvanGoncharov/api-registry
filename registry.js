@@ -4,6 +4,8 @@
 'use strict';
 
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 const url = require('url');
 
@@ -16,16 +18,25 @@ const yaml = require('yaml');
 
 const ng = require('./index.js');
 
+const httpAgent = new http.Agent({ keepAlive: true });
+const httpsAgent = new https.Agent({ keepAlive: true });
+
 const logoPath = path.resolve('.','deploy','v2','cache','logo');
 const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
 const argv = require('tiny-opts-parser')(process.argv);
 const resOpt = { resolve: true };
-const valOpt = { patch: true, validateSchema: 'never', resolve: false };
+const valOpt = { patch: true, anchors: true, validateSchema: 'never', resolve: false };
 
 //Disable check of SSL certificates
 //process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+
+function agent(url) {
+  if (url.startsWith('https')) return httpsAgent;
+  if (url.startsWith('http')) return httpAgent;
+  return undefined;
+}
 
 async function validateObj(o,s,candidate) {
   valOpt.text = s;
@@ -102,19 +113,22 @@ const commands = {
     if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
       origLogo = o.info['x-logo'].url;
     }
-    let response;
-    try {
-      const res = await fetch(origLogo, {cacheFolder: logoCache});
-      response = await res.buffer();
-    }
-    catch (ex) {
-      console.warn(ex.message);
-      const res = await fetch(defaultLogo, {cacheFolder: logoCache});
-      response = await res.buffer();
-    }
     const logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
-    if (response.body) {
-      fs.writeFileSync(path.join(logoPath,logoName),response.body);
+    const logoFull = path.join(logoPath,logoName);
+    if (!fs.existsSync(logoFull)) { // if we have not deployed this logo yet
+      let response;
+      try {
+        const res = await fetch(origLogo, {timeout:1000, cacheFolder: logoCache, refresh: 'never'}); // TODO removed agent for now because of scheme changes on redirects
+        response = await res.buffer();
+      }
+      catch (ex) {
+        console.warn(ng.colour.red+ex.message+ng.colour.normal);
+        const res = await fetch(defaultLogo, {timeout:1000, agent:agent(defaultLogo), cacheFolder: logoCache, refresh: 'never'});
+        response = await res.buffer();
+      }
+      if (response) {
+        fs.writeFileSync(logoFull,response);
+      }
     }
 
     if (!o.info['x-logo']) o.info['x-logo'] = {};
@@ -128,7 +142,7 @@ const commands = {
     await mkdirp(filepath);
     fs.writeFileSync(path.join(filepath,filename+'yaml'),s,'utf8');
     fs.writeFileSync(path.join(filepath,filename+'json'),j,'utf8');
-    console.log('deploy');
+    console.log(ng.colour.green+'✔'+ng.colour.normal);
     return true;
   },
   validate: async function(candidate) {
@@ -141,12 +155,12 @@ const commands = {
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
     // TODO github, google, apisjson etc
-    let response = { status: 200 };
+    let response = { status: 599 };
     try {
       let s;
       if (u.startsWith('http')) {
         process.stdout.write('F');
-        response = await fetch(u, {logToConsole:false, cacheFolder: mainCache});
+        response = await fetch(u, {timeout:1000, agent:agent(u), logToConsole:false, cacheFolder: mainCache, refresh: 'once'});
         if (response.ok) {
           s = await response.text();
         }
@@ -154,6 +168,7 @@ const commands = {
       else if (u.startsWith('file')) {
         const filename = url.fileURLToPath(u);
         s = fs.readFileSync(filename,'utf8');
+        response.status = 200;
       }
       else {
         s = fs.readFileSync(u,'utf8');
@@ -163,6 +178,9 @@ const commands = {
         o = yaml.parse(s);
         const result = await validateObj(o,s,candidate);
         if (result) {
+          if (o.info && o.info.version === '') {
+            o.info.version = '1.0.0';
+          }
           if (o.info && o.info.version !== candidate.version) {
             console.log('  Updated to',o.info.version);
             candidate.parent[o.info.version] = candidate.parent[candidate.version];
@@ -184,7 +202,7 @@ const commands = {
           origin.push(candidate.md.source);
           o.info['x-origin'] = origin;
           if (candidate.service) o.info['x-serviceName'] = candidate.service;
-          if (typeof candidate.md.preferred !== 'undefined') o.info['x-preferred'] = candidate.md.preferred;
+          if (typeof candidate.md.preferred === 'boolean') o.info['x-preferred'] = candidate.md.preferred;
           const content = yaml.stringify(ng.sortJson(o));
           fs.writeFile(candidate.md.filename,content,'utf8',function(err){
             if (err) console.warn(err);
@@ -215,7 +233,9 @@ const commands = {
       if (r) {
         console.log(r);
         candidate.md.statusCode = r.status;
-        candidate.md.mediatype = r.headers.get('content-type');
+        if (r.headers) {
+          candidate.md.mediatype = r.headers.get('content-type');
+        }
       }
       return false;
     }
@@ -234,11 +254,13 @@ const commands = {
 
 async function main(command, pathspec) {
   ng.loadMetadata();
-  const apis = await ng.gather(pathspec, argv.slow);
-  console.log(Object.keys(apis).length,'APIs found');
-  ng.populateMetadata(apis);
-  ng.runDrivers();
-  const candidates = ng.getCandidates();
+  if (!argv.only) {
+    const apis = await ng.gather(pathspec, argv.patch);
+    console.log(Object.keys(apis).length,'APIs found');
+    ng.populateMetadata(apis);
+  }
+  ng.runDrivers(argv.only);
+  const candidates = ng.getCandidates(argv.only);
   console.log(candidates.length,'candidates found');
 
   let count = 0;
