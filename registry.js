@@ -15,6 +15,7 @@ const fetch = require('fetch-filecache-for-crawling');
 const mkdirp = require('mkdirp');
 const pd = require('parse-domain');
 const s2o = require('swagger2openapi');
+const resolver = require('oas-resolver');
 const validator = require('oas-validator');
 const yaml = require('yaml');
 
@@ -36,8 +37,9 @@ if (argv.c) argv.categories = argv.c;
 if (argv.f) argv.force = argv.f;
 if (argv.i) argv.issue = argv.i;
 
-const resOpt = { resolve: true };
-const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false };
+let oasCache = {};
+const resOpt = { resolve: true, cache: oasCache };
+const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false, cache: oasCache };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 
 //Disable check of SSL certificates
@@ -58,13 +60,20 @@ function getProvider(u) {
 
 async function validateObj(o,s,candidate) {
   valOpt.text = s;
-  valOpt.source = candidate.md.source.url;
   let result = { valid: false };
   try {
+    valOpt.source = candidate.md.source.url;
+    process.stdout.write('R');
+    await resolver.resolve(o,valOpt.source,valOpt);
+    o = valOpt.openapi;
+    valOpt.resolve = false;
     if (o.swagger && o.swagger == '2.0') {
       process.stdout.write('C');
       await s2o.convertObj(o, valOpt);
-      o = valOpt.openapi;
+      o = valOpt.openapi; //? working?
+    }
+    else {
+      resOpt.source = candidate.md.source.url;
     }
     process.stdout.write('V');
     await validator.validate(o, valOpt);
@@ -288,7 +297,7 @@ const commands = {
           const content = yaml.stringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
           fs.writeFileSync(filename,content,'utf8');
-          console.log('Wrote new',provider,service||'-',o.info.version,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+          console.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
       else {
@@ -318,7 +327,7 @@ const commands = {
             o.info.version = '1.0.0';
           }
 
-          if (valOpt.patches > 0) {
+          if ((valOpt.patches > 0) || (candidate.md.autoUpgrade)) {
             // passed validation as OAS 3 but only by patching the source
             // therefore the original OAS 2 document might not be valid as-is
             o = valOpt.openapi;
@@ -423,12 +432,14 @@ async function main(command, pathspec) {
   let oldProvider = '*';
   for (let candidate of candidates) {
     if (candidate.provider !== oldProvider) {
-      valOpt.cache = {};
+      oasCache = {};
+      resOpt.cache = oasCache;
+      valOpt.cache = oasCache;
       oldProvider = candidate.provider;
     }
     process.stdout.write(candidate.provider+' '+candidate.driver+' '+candidate.service+' '+candidate.version+' ');
     await commands[command](candidate);
-    delete valOpt.cache[valOpt.source];
+    //delete valOpt.cache[resOpt.source];
     //let voa = analyseOpt(valOpt);
     //fs.writeFileSync('../valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
     count++;
