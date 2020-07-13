@@ -44,7 +44,8 @@ function fail(candidate,status,err,context) {
 }
 
 function fastCommand(command) {
-  return ((command === 'ci') || (command === 'deploy') || (command == 'add'));
+  return ((command === 'ci') || (command === 'deploy') || (command == 'add')
+    || (command === 'paths'));
 }
 
 const driverFuncs = {
