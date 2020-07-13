@@ -354,7 +354,7 @@ const commands = {
           }
 
           let openapiVer = (o.openapi ? o.openapi : o.swagger);
-          if (o.info && (o.info.version !== candidate.version) || (openapiVer !== candidate.md.openapi)) {
+          if ((o.info && (o.info.version !== candidate.version)) || (openapiVer !== candidate.md.openapi)) {
             console.log('  Updated to',o.info.version,openapiVer);
             if (o.info.version !== candidate.version) {
               candidate.parent[o.info.version] = candidate.parent[candidate.version];
@@ -396,8 +396,8 @@ const commands = {
         }
       }
       else { // if not status 200 OK
-        ng.fail(candidate,response.status);
-        console.log(ng.colour.red,response.status,ng.colour.normal);
+        ng.fail(candidate,result.response.status);
+        console.log(ng.colour.red,result.response.status,ng.colour.normal);
         return false;
       }
     }
