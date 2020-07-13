@@ -44,7 +44,7 @@ function fail(candidate,status,err,context) {
 }
 
 function fastCommand(command) {
-  return ((command === 'ci') || (command === 'deploy'));
+  return ((command === 'ci') || (command === 'deploy') || (command == 'add'));
 }
 
 const driverFuncs = {
@@ -283,7 +283,6 @@ module.exports = {
   saveMetadata,
   gather,
   populateMetadata,
-  metadata,
   runDrivers,
   getCandidates
 };

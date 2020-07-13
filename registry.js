@@ -13,6 +13,7 @@ const util = require('util');
 const deepmerge = require('deepmerge');
 const fetch = require('fetch-filecache-for-crawling');
 const mkdirp = require('mkdirp');
+const pd = require('parse-domain');
 const s2o = require('swagger2openapi');
 const validator = require('oas-validator');
 const yaml = require('yaml');
@@ -27,6 +28,14 @@ const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
 const argv = require('tiny-opts-parser')(process.argv);
+if (argv.q) argv.quiet = argv.q;
+if (argv.s) argv.service = argv.s;
+if (argv.h) argv.host = argv.h;
+if (argv.t) argv.twitter = argv.t;
+if (argv.c) argv.categories = argv.c;
+if (argv.f) argv.force = argv.f;
+if (argv.i) argv.issue = argv.i;
+
 const resOpt = { resolve: true };
 const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
@@ -38,6 +47,13 @@ function agent(url) {
   if (url.startsWith('https')) return httpsAgent;
   if (url.startsWith('http')) return httpAgent;
   return undefined;
+}
+
+function getProvider(u) {
+  const {subDomains, domain, topLevelDomains} = pd.parseDomain(
+    pd.fromUrl(u)
+  );
+  return domain+'.'+topLevelDomains.join('.');
 }
 
 async function validateObj(o,s,candidate) {
@@ -58,6 +74,7 @@ async function validateObj(o,s,candidate) {
   catch (ex) {
     console.log();
     console.warn(ng.colour.red+ex.message+ng.colour.normal);
+    //console.warn(ex);
     let context;
     if (valOpt.context) {
       context = valOpt.context.pop();
@@ -72,6 +89,30 @@ async function validateObj(o,s,candidate) {
 
 async function fix(candidate, o) {
   // TODO use jmespath queries to fix up stuff
+}
+
+async function retrieve(u) {
+  let response = { status: 599, ok: false };
+  let s;
+  if (u.startsWith('http')) {
+    process.stdout.write('F');
+    response = await fetch(u, {timeout:1000, agent:agent(u), logToConsole:false, cacheFolder: mainCache, refresh: 'once'});
+    if (response.ok) {
+      s = await response.text();
+    }
+  }
+  else if (u.startsWith('file')) {
+    const filename = url.fileURLToPath(u);
+    s = fs.readFileSync(filename,'utf8');
+    response.status = 200;
+    response.ok = true;
+  }
+  else {
+    s = fs.readFileSync(u,'utf8');
+    response.status = 200;
+    response.ok = true;
+  }
+  return { response, text:s }
 }
 
 const commands = {
@@ -130,6 +171,7 @@ const commands = {
       catch (ex) {
         colour = ng.colour.red;
         console.warn(ng.colour.red+ex.message+ng.colour.normal);
+        //console.warn(ex);
         const res = await fetch(defaultLogo, {timeout:1000, agent:agent(defaultLogo), cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
       }
@@ -169,38 +211,120 @@ const commands = {
       console.log(ng.colour.yellow+'🕓'+ng.colour.normal);
     }
   },
+  add: async function(u,metadata) {
+    process.stdout.write(u+' ');
+    try {
+      const result = await retrieve(u);
+      if (result.response.ok) {
+        let o = yaml.parse(result.text);
+        const org = o;
+        const candidate = { md: { source: { url: u }, valid: false } };
+        const valid = await validateObj(o,result.text,candidate);
+        if (valid) {
+          if (valOpt.patches > 0) {
+            o = valOpt.openapi;
+          }
+          let ou = u;
+          if (o.servers) {
+            ou = o.servers[0].url;
+          }
+          if (o.host) {
+            ou = o.host;
+          }
+          const provider = getProvider(ou);
+          const service = argv.service || '';
+
+          if (!metadata[provider]) {
+            metadata[provider] = { driver: 'url', apis: {} };
+          }
+          if (!metadata[provider].apis[service]) {
+            metadata[provider].apis[service] = {};
+          }
+          candidate.md.added = ng.now;
+          candidate.md.updated = ng.now;
+          candidate.md.history = [];
+          if (org.openapi) {
+            candidate.md.name = 'openapi.yaml';
+            candidate.md.source.format = 'openapi';
+            candidate.md.source.version = org.openapi.substr(0,3); // TODO FIXME properly
+            candidate.md.openapi = org.openapi;
+          }
+          else if (org.swagger) {
+            candidate.md.name = 'swagger.yaml';
+            candidate.md.source.format = 'swagger';
+            candidate.md.source.version = org.swagger;
+            candidate.md.openapi = o.openapi ? o.openapi : o.swagger;
+          }
+          if (o.info && o.info.version === '') {
+            o.info.version = '1.0.0';
+          }
+          metadata[provider].apis[service][o.info.version] = candidate.md;
+
+          const filepath = path.resolve('.','APIs',provider,service,o.info.version);
+          await mkdirp(filepath);
+          const filename = path.resolve(filepath,candidate.md.name);
+          candidate.md.filename = path.relative('.',filepath);
+
+          o.info['x-providerName'] = provider;
+          if (service) {
+            o.info['x-serviceName'] = service;
+          }
+          if (!o.info['x-origin']) {
+            o.info['x-origin'] = [];
+          }
+          o.info['x-origin'].push(candidate.md.source);
+
+          const patch = {};
+          if (argv.categories) {
+            const categories = argv.categories.split(',');
+            o.info['x-apisguru-categories'] = categories;
+            if (!patch.info) patch.info = {};
+            patch.info['x-apisguru-categories'] = categories;
+          }
+          if (Object.keys(patch).length) {
+            candidate.md.patch = patch;
+          }
+
+          const content = yaml.stringify(ng.sortJson(o));
+          candidate.md.hash = ng.sha256(content);
+          fs.writeFileSync(filename,content,'utf8');
+          console.log('Wrote new',provider,service||'-',o.info.version,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+        }
+      }
+      else {
+        console.warn(ng.colour.red,result.response.status,ng.colour.normal);
+      }
+    }
+    catch (ex) {
+      console.warn(ng.colour.red+ex.message+ng.colour.normal);
+      //console.warn(ex);
+    }
+  },
   update: async function(candidate) {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
     // TODO github, google, apisjson etc
-    let response = { status: 599 };
     try {
-      let s;
-      if (u.startsWith('http')) {
-        process.stdout.write('F');
-        response = await fetch(u, {timeout:1000, agent:agent(u), logToConsole:false, cacheFolder: mainCache, refresh: 'once'});
-        if (response.ok) {
-          s = await response.text();
-        }
-      }
-      else if (u.startsWith('file')) {
-        const filename = url.fileURLToPath(u);
-        s = fs.readFileSync(filename,'utf8');
-        response.status = 200;
-        response.ok = true;
-      }
-      else {
-        s = fs.readFileSync(u,'utf8');
-      }
+      const result = await retrieve(u);
       let o = {};
-      if (response.ok) {
+      let autoUpgrade = false;
+      if (result && result.response.ok) {
+        const s = result.text;
         o = yaml.parse(s);
-        const result = await validateObj(o,s,candidate);
-        if (result) {
+        const valid = await validateObj(o,s,candidate);
+        if (valid) {
           if (o.info && o.info.version === '') {
             o.info.version = '1.0.0';
           }
+
+          if (valOpt.patches > 0) {
+            // passed validation as OAS 3 but only by patching the source
+            // therefore the original OAS 2 document might not be valid as-is
+            o = valOpt.openapi;
+            autoUpgrade = true;
+          }
+
           let openapiVer = (o.openapi ? o.openapi : o.swagger);
           if (o.info && (o.info.version !== candidate.version) || (openapiVer !== candidate.md.openapi)) {
             console.log('  Updated to',o.info.version,openapiVer);
@@ -245,7 +369,6 @@ const commands = {
       else { // if not status 200 OK
         ng.fail(candidate,response.status);
         console.log(ng.colour.red,response.status,ng.colour.normal);
-        console.log();
         return false;
       }
     }
@@ -253,8 +376,9 @@ const commands = {
       if (ex.timings) delete ex.timings;
       console.log();
       console.warn(ng.colour.red+ex.message,ex.response ? ex.response.statusCode : '',ng.colour.normal);
+      //console.warn(ex);
       if (!ex.message) console.warn(ex);
-      let r = ex.response || response;
+      let r = ex.response;
       if (r) {
         candidate.md.statusCode = r.status;
         if (r.headers) {
@@ -278,7 +402,14 @@ const commands = {
 //}
 
 async function main(command, pathspec) {
-  ng.loadMetadata();
+  const metadata = ng.loadMetadata();
+
+  if (command === 'add') {
+    await commands[command](pathspec,metadata);
+    ng.saveMetadata();
+    return 1;
+  }
+
   if (!argv.only) {
     const apis = await ng.gather(pathspec, command, argv.patch);
     console.log(Object.keys(apis).length,'APIs scanned');
