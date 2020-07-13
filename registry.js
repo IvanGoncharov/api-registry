@@ -146,6 +146,22 @@ const commands = {
     fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
     console.log('rw');
   },
+  paths: async function(candidate) {
+    try {
+      let s = fs.readFileSync(candidate.md.filename,'utf8');
+      const o = yaml.parse(s);
+      candidate.md.paths = Object.keys(o.paths).length;
+      if (candidate.md.paths === 0) {
+        fs.unlinkSync(candidate.md.filename);
+        delete candidate.parent[o.info.version];
+      }
+      console.log(ng.colour.green+'p:'+candidate.md.paths,ng.colour.normal);
+    }
+    catch (ex) {
+      console.log(ng.colour.red+ex.message,ng.colour.normal);
+      ng.fail(candidate,null,ex,'paths');
+    }
+  },
   cache: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
@@ -272,7 +288,7 @@ const commands = {
           const filepath = path.resolve('.','APIs',provider,service,o.info.version);
           await mkdirp(filepath);
           const filename = path.resolve(filepath,candidate.md.name);
-          candidate.md.filename = path.relative('.',filepath);
+          candidate.md.filename = path.relative('.',filename);
 
           o.info['x-providerName'] = provider;
           if (service) {
@@ -296,6 +312,7 @@ const commands = {
 
           const content = yaml.stringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
+          candidate.md.paths = Object.keys(o.paths).length;
           fs.writeFileSync(filename,content,'utf8');
           console.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
@@ -327,6 +344,8 @@ const commands = {
             o.info.version = '1.0.0';
           }
 
+          // TODO if there is a logo.url try and fetch/cache it
+
           if ((valOpt.patches > 0) || (candidate.md.autoUpgrade)) {
             // passed validation as OAS 3 but only by patching the source
             // therefore the original OAS 2 document might not be valid as-is
@@ -349,7 +368,7 @@ const commands = {
             mkdirp.sync(pathname);
             ng.exec('mv '+ofname+' '+candidate.md.filename);
           }
-          o = deepmerge(candidate.md.patch,o);
+          o = deepmerge(o,candidate.md.patch);
           delete o.info.logo; // TODO nytimes hack (masked by conv stage)
           if (o.info['x-apisguru-categories']) {
             o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
@@ -369,6 +388,7 @@ const commands = {
             candidate.md.hash = newHash;
             candidate.md.updated = ng.now;
           }
+          candidate.md.paths = Object.keys(o.paths).length;
           delete candidate.md.statusCode;
         }
         else { // if not valid
