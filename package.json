@@ -23,8 +23,9 @@
     "node-readfiles": "^0.2.0",
     "oas-resolver": "^2.4.0",
     "oas-validator": "^4.0.5",
+    "parse-domain": "^3.0.2",
     "remove-markdown": "^0.3.0",
-    "swagger2openapi": "^6.1.1",
+    "swagger2openapi": "^6.2.0",
     "tiny-opts-parser": "0.0.3",
     "urijs": "^1.19.2",
     "yaml": "^1.10.0"
