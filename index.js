@@ -59,10 +59,17 @@ const driverFuncs = {
   },
   apisjson: async function(provider,md) {
     console.log('  ',md.masterUrl);
+    // TODO use a generic json catalog driver with a jmespath
+    return true;
+  },
+  html: async function(provider,md) {
+    console.log('  ',md.masterUrl);
+    // TODO use a cheerio DOM selector and an optional regex for replacement
     return true;
   },
   google: async function(provider,md) {
     console.log('  ',md.masterUrl);
+    // may be able to use generic json catalog driver
     return true;
   },
   github: async function(provider,md) {
