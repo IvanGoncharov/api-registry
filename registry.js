@@ -38,8 +38,8 @@ if (argv.f) argv.force = argv.f;
 if (argv.i) argv.issue = argv.i;
 
 let oasCache = {};
-const resOpt = { resolve: true, cache: oasCache };
-const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false, cache: oasCache };
+const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
+const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 
 //Disable check of SSL certificates
@@ -58,22 +58,20 @@ function getProvider(u) {
   return domain+'.'+topLevelDomains.join('.');
 }
 
-async function validateObj(o,s,candidate) {
+async function validateObj(o,s,candidate,source) {
   valOpt.text = s;
   let result = { valid: false };
   try {
-    valOpt.source = candidate.md.source.url;
     process.stdout.write('R');
-    await resolver.resolve(o,valOpt.source,valOpt);
-    o = valOpt.openapi;
-    valOpt.resolve = false;
+    await resolver.resolve(o,source,resOpt);
+    o = resOpt.openapi;
     if (o.swagger && o.swagger == '2.0') {
       process.stdout.write('C');
       await s2o.convertObj(o, valOpt);
       o = valOpt.openapi; //? working?
     }
     else {
-      resOpt.source = candidate.md.source.url;
+      // TODO
     }
     process.stdout.write('V');
     await validator.validate(o, valOpt);
@@ -223,14 +221,14 @@ const commands = {
   validate: async function(candidate) {
     const s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
-    return await validateObj(o,s,candidate);
+    return await validateObj(o,s,candidate,candidate.md.filename);
   },
   ci: async function(candidate) {
     const diff = Math.round(Math.abs((ng.now - new Date(candidate.md.updated)) / dayMs));
     if (diff <= 2.0) {
       const s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
-      return await validateObj(o,s,candidate);
+      return await validateObj(o,s,candidate,candidate.md.filename);
     }
     else {
       console.log(ng.colour.yellow+'🕓'+ng.colour.normal);
@@ -244,7 +242,7 @@ const commands = {
         let o = yaml.parse(result.text);
         const org = o;
         const candidate = { md: { source: { url: u }, valid: false } };
-        const valid = await validateObj(o,result.text,candidate);
+        const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valid) {
           if (valOpt.patches > 0) {
             o = valOpt.openapi;
@@ -338,7 +336,7 @@ const commands = {
       if (result && result.response.ok) {
         const s = result.text;
         o = yaml.parse(s);
-        const valid = await validateObj(o,s,candidate);
+        const valid = await validateObj(o,s,candidate,candidate.md.source.url);
         if (valid) {
           if (o.info && o.info.version === '') {
             o.info.version = '1.0.0';
@@ -421,14 +419,19 @@ const commands = {
   }
 };
 
-//function analyseOpt(options) { // show size of each bucket in oas-kit options
-//  let result = {};
-//  for (let p in options) {
-//    let j = JSON.stringify(options[p]);
-//    result[p] = j.length;
-//  }
-//  return result;
-//}
+const wrapUp = {
+  deploy: async function() {
+  }
+};
+
+function analyseOpt(options) { // show size of each bucket in oas-kit options
+  let result = {};
+  for (let p in options) {
+    let j = JSON.stringify(options[p]);
+    result[p] = (typeof j === 'string' ? j.length : 0);
+  }
+  return result;
+}
 
 async function main(command, pathspec) {
   const metadata = ng.loadMetadata();
@@ -444,7 +447,7 @@ async function main(command, pathspec) {
     console.log(Object.keys(apis).length,'APIs scanned');
     ng.populateMetadata(apis);
   }
-  ng.runDrivers(argv.only);
+  await ng.runDrivers(argv.only);
   const candidates = ng.getCandidates(argv.only, ng.fastCommand(command));
   console.log(candidates.length,'candidates found');
 
@@ -460,9 +463,14 @@ async function main(command, pathspec) {
     process.stdout.write(candidate.provider+' '+candidate.driver+' '+candidate.service+' '+candidate.version+' ');
     await commands[command](candidate);
     //delete valOpt.cache[resOpt.source];
+
     //let voa = analyseOpt(valOpt);
-    //fs.writeFileSync('../valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
+    //fs.writeFileSync('./valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
     count++;
+  }
+
+  if (wrapUp[command]) {
+    await wrapUp[command]();
   }
 
   ng.saveMetadata();
