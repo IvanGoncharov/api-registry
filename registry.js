@@ -18,6 +18,8 @@ const s2o = require('swagger2openapi');
 const resolver = require('oas-resolver');
 const validator = require('oas-validator');
 const yaml = require('yaml');
+const removeMarkdown = require('remove-markdown');
+const j2x = require('jgexml/json2xml.js');
 
 const ng = require('./index.js');
 
@@ -202,7 +204,7 @@ const commands = {
         fs.writeFileSync(logoFull,response);
       }
     }
-    process.stdout.write(colour+'📷'+ng.colour.normal);
+    process.stdout.write(colour+'📷 '+ng.colour.normal);
 
     if (!o.info['x-logo']) o.info['x-logo'] = {};
     o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
@@ -419,8 +421,103 @@ const commands = {
   }
 };
 
+function rssFeed(data) {
+  let feed = {};
+  let rss = {};
+
+  let d = ng.now;
+
+  console.log('RSS Feed...');
+
+  rss['@version'] = '2.0';
+  rss["@xmlns:atom"] = 'http://www.w3.org/2005/Atom';
+  rss.channel = {};
+  rss.channel.title = 'APIs.guru OpenAPI directory RSS feed';
+  rss.channel.link = 'https://api.apis.guru/v2/list.rss';
+  rss.channel["atom:link"] = {};
+  rss.channel["atom:link"]["@rel"] = 'self';
+  rss.channel["atom:link"]["@href"] = rss.channel.link;
+  rss.channel["atom:link"]["@type"] = 'application/rss+xml';
+  rss.channel.description = 'APIs.guru OpenAPI directory RSS feed';
+  rss.channel.webMaster = 'mike.ralphson@gmail.com (Mike Ralphson)';
+  rss.channel.pubDate = ng.now.toUTCString();
+  rss.channel.generator = 'openapi-directory https://github.com/apis-guru/openapi-directory';
+  rss.channel.item = [];
+
+  for (let api in data) {
+
+      let p = data[api].versions[data[api].preferred];
+      if (p && p.info) {
+        let i = {};
+        i.title = p.info.title;
+        i.link = p.info["x-origin"][0].url;
+        i.description = removeMarkdown(p.info.description ? p.info.description.trim().split('\n')[0] : p.info.title);
+        i.category = 'APIs';
+        i.guid = {};
+        i.guid["@isPermaLink"] = 'false';
+        i.guid[""] = api;
+        i.pubDate = new Date(p.updated).toUTCString();
+
+        if (p.info["x-logo"]) {
+          i.enclosure = {};
+          i.enclosure["@url"] = p.info["x-logo"].url;
+          i.enclosure["@length"] = 15026;
+          i.enclosure["@type"] = 'image/jpeg';
+          if (typeof i.enclosure["@url"] === 'string') {
+            let tmp = i.enclosure["@url"].toLowerCase();
+            if (tmp.indexOf('.png')>=0) i.enclosure["@type"] = 'image/png';
+            if (tmp.indexOf('.svg')>=0) i.enclosure["@type"] = 'image/svg+xml';
+          }
+          else console.warn(api,i.enclosure["@url"]);
+        }
+
+        rss.channel.item.push(i);
+      }
+  }
+
+  feed.rss = rss;
+  return j2x.getXml(feed,'@','',2);
+}
+
+function getApiUrl(candidate, ext) {
+  let result = 'https://api.apis.guru/v2/specs/'+candidate.provider;
+  if (candidate.service) result += '/'+candidate.service;
+  result += candidate.version + '/' + (candidate.md.openapi.startsWith('3.') ? 'openapi' : 'swagger') + ext;
+  return result;
+}
+
 const wrapUp = {
-  deploy: async function() {
+  deploy: async function(candidates) {
+    let totalPaths = 0;
+    const list = {};
+
+    console.log('API list...');
+
+    for (let candidate of candidates) {
+      totalPaths += candidate.md.paths;
+      let key = candidate.provider;
+      if (candidate.service) key += ':'+candidate.service;
+      if (!list.key) list[key] = { added: candidate.md.added, preferred: candidate.version, versions: {} };
+      list[key].versions[candidate.version] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
+      if (candidate.preferred) list[key].preferred = candidate.version;
+    }
+    const metrics = {
+      numSpecs: candidates.length,
+      numAPIs: Object.keys(list).length,
+      numEndpoints: totalPaths
+    };
+    fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
+    const xml = rssFeed(list);
+    fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),xml,'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','.nojekyll'),'','utf8');
+    try {
+      const indexHtml = fs.readFileSync(path.resolve('.','metadata','index.html'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','index.html'),indexHtml,'utf8');
+    }
+    catch (ex) {
+      console.warn(ng.colour.red+ex.message+ng.colour.normal);
+    }
   }
 };
 
@@ -470,7 +567,7 @@ async function main(command, pathspec) {
   }
 
   if (wrapUp[command]) {
-    await wrapUp[command]();
+    await wrapUp[command](candidates);
   }
 
   ng.saveMetadata();
