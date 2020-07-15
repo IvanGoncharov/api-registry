@@ -21,6 +21,7 @@ const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m' };
 
 let metadata = {};
+let apis = {};
 const failures = {};
 
 function exec(command) {
@@ -44,8 +45,7 @@ function fail(candidate,status,err,context) {
 }
 
 function fastCommand(command) {
-  return ((command === 'ci') || (command === 'deploy') || (command == 'add')
-    || (command === 'paths'));
+  return ((command === 'ci') || (command == 'add') || (command === 'paths'));
 }
 
 const driverFuncs = {
@@ -166,7 +166,7 @@ function saveMetadata() {
 
 async function gather(pathspec, command, slow) {
   console.log('Gathering...');
-  const apis = {};
+  apis = {};
   if (fastCommand(command)) return apis;
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
@@ -220,16 +220,18 @@ function populateMetadata(apis) {
     if (serviceName) comp.pop();
     comp.pop(); // providerName
     const filepath = comp.join('/');
-    const origin = api.info['x-origin'] || [ {} ];
+    const origin = clone(api.info['x-origin']) || [ {} ];
     const source = origin.pop();
     const history = api.info['x-origin'];
     const entry = { name, openapi, preferred, filename, source, history, hash: api.hash, run: true, runDate: now };
     if (api.patch && Object.keys(api.patch).length) {
       entry.patch = api.patch;
     }
+
     if (!metadata[providerName]) metadata[providerName] = { driver: 'url', apis: {} };
     if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
     if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
+
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
     if (!metadata[providerName].apis[serviceName][version].added) {
       metadata[providerName].apis[serviceName][version].added = now;
@@ -269,6 +271,7 @@ function getCandidates(driver, override) {
       for (let version in metadata[provider].apis[service]) {
         if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run || override) {
           const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], md: metadata[provider].apis[service][version] };
+          entry.info = apis[entry.md.filename].info;
           result.push(entry);
         }
       }
