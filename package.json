@@ -19,6 +19,7 @@
     "deep-sort-object": "^1.0.2",
     "deepmerge": "^4.2.2",
     "fetch-filecache-for-crawling": "^4.0.2",
+    "jgexml": "^0.4.3",
     "mkdirp": "^1.0.4",
     "node-readfiles": "^0.2.0",
     "oas-resolver": "^2.4.1",
@@ -29,5 +30,14 @@
     "tiny-opts-parser": "0.0.3",
     "urijs": "^1.19.2",
     "yaml": "^1.10.0"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mermade/api-registry.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mermade/api-registry/issues"
+  },
+  "homepage": "https://github.com/Mermade/api-registry#readme"
 }
