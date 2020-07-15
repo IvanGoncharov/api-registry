@@ -16,6 +16,7 @@
   "author": "Mike Ralphson",
   "license": "MIT",
   "dependencies": {
+    "badge-maker": "^3.2.0",
     "deep-sort-object": "^1.0.2",
     "deepmerge": "^4.2.2",
     "fetch-filecache-for-crawling": "^4.0.2",
