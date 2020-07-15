@@ -20,6 +20,7 @@ const validator = require('oas-validator');
 const yaml = require('yaml');
 const removeMarkdown = require('remove-markdown');
 const j2x = require('jgexml/json2xml.js');
+const shields = require('badge-maker').makeBadge;
 
 const ng = require('./index.js');
 
@@ -486,6 +487,24 @@ function getApiUrl(candidate, ext) {
   return result;
 }
 
+function badges(metrics) {
+  const badgepath = path.resolve('.','deploy','badges');
+  console.log('Badges...');
+  mkdirp.sync(badgepath);
+  const badges = [
+    { label: 'APIs in collection', name: 'apis_in_collection.svg', prop: 'numAPIs', color: 'orange' },
+    { label: 'Endpoints', name: 'endpoints.svg', prop: 'numEndpoints', color: 'red' },
+    { label: 'OpenAPI Specs', name: 'openapi_specs.svg', prop: 'numSpecs', color: 'yellow' },
+    { label: '🐝 Tested on', name: 'tested_on.svg', prop: 'numSpecs', color: 'green' }
+  ];
+  for (let badge of badges) {
+     const format = { label: badge.label, message: metrics[badge.prop].toString(), color: badge.color };
+     // TODO logo when https://github.com/badges/shields/issues/4947 done
+     const svg = shields(format);
+     fs.writeFileSync(badgepath+'/'+badge.name,svg,'utf8');
+  }
+}
+
 const wrapUp = {
   deploy: async function(candidates) {
     let totalPaths = 0;
@@ -506,6 +525,7 @@ const wrapUp = {
       numAPIs: Object.keys(list).length,
       numEndpoints: totalPaths
     };
+    badges(metrics);
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
     const xml = rssFeed(list);
