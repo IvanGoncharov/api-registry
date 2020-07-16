@@ -1,0 +1,57 @@
+<html>
+  <head>
+    <title>Simple UI for APIs.guru</title>
+    <meta name="description" content="Wikipedia for REST APIs"/>
+    <style>
+      body {
+        padding: 20px;
+        margin: 0;
+      }
+      p {
+        margin: 0;
+        padding: 2px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>APIs.guru API definition reference</h1>
+    <section id="links">Loading...</section>
+    <script type="text/javascript">
+      var urlTemplate = '{swaggerYaml}';
+      var match = window.location.search.match(/^\?urlTemplate=(.*)$/);
+      if (match)
+        urlTemplate = decodeURIComponent(match[1]);
+
+      var rootUrl = 'https://api.apis.guru/v2/';
+
+      var xhttp = new XMLHttpRequest();
+      xhttp.onload = function() {
+        if (xhttp.status != 200)
+          return;
+
+        var specList = JSON.parse(xhttp.responseText)
+        var links = '';
+        for(var apiId in specList){
+          var api = specList[apiId];
+          for (var version in api.versions) {
+            var swaggerYaml = api.versions[version].swaggerYamlUrl;
+            var swaggerJson = api.versions[version].swaggerUrl;
+
+            var specName = swaggerYaml.replace(rootUrl + 'specs/', '');
+            var href = urlTemplate.replace('{swaggerYaml}', swaggerYaml)
+                                  .replace(rootUrl + 'specs/', '')
+                                  .replace('/openapi.yaml', '.html')
+                                  .replace('/swagger.yaml', '.html')
+            links += '<p><a href="'+ href +'" target="_blank">'+ specName +'</a></p>';
+          }
+        }
+        document.getElementById('links').innerHTML = links;
+      };
+
+      xhttp.open('GET', rootUrl + 'list.json', true);
+      xhttp.send(null);
+    </script>
+  </body>
+</html>
+

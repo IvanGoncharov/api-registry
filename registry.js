@@ -21,6 +21,7 @@ const yaml = require('yaml');
 const removeMarkdown = require('remove-markdown');
 const j2x = require('jgexml/json2xml.js');
 const shields = require('badge-maker').makeBadge;
+const liquid = require('liquid');
 
 const ng = require('./index.js');
 
@@ -31,19 +32,24 @@ const logoPath = path.resolve('.','deploy','v2','cache','logo');
 const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
+const liquidEngine = new liquid.Engine();
+
 const argv = require('tiny-opts-parser')(process.argv);
 if (argv.q) argv.quiet = argv.q;
 if (argv.s) argv.service = argv.s;
 if (argv.h) argv.host = argv.h;
+if (argv.l) argv.logo = argv.l;
 if (argv.t) argv.twitter = argv.t;
 if (argv.c) argv.categories = argv.c;
 if (argv.f) argv.force = argv.f;
 if (argv.i) argv.issue = argv.i;
+if (argv.u) argv.unofficial = argv.u;
 
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
-const valOpt = { patch: true, warnOnly: true, anchors: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
+const valOpt = { patch: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+let htmlTemplate;
 
 //Disable check of SSL certificates
 //process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
@@ -55,10 +61,14 @@ function agent(url) {
 }
 
 function getProvider(u) {
-  const {subDomains, domain, topLevelDomains} = pd.parseDomain(
+  let {subDomains, domain, topLevelDomains} = pd.parseDomain(
     pd.fromUrl(u)
   );
-  return domain+'.'+topLevelDomains.join('.');
+  if (!domain) {
+    const up = url.parse(u);
+    domain = up.host;
+  }
+  return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
 }
 
 async function validateObj(o,s,candidate,source) {
@@ -147,6 +157,15 @@ const commands = {
     fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
     console.log('rw');
   },
+  purge: async function(candidate) {
+    if (!fs.existsSync(candidate.md.filename)) {
+      console.log(ng.colour.yellow+'␡'+ng.colour.normal);
+      delete candidate.parent[candidate.version];
+    }
+    else {
+      console.log();
+    }
+  },
   paths: async function(candidate) {
     try {
       let s = fs.readFileSync(candidate.md.filename,'utf8');
@@ -154,7 +173,7 @@ const commands = {
       candidate.md.paths = Object.keys(o.paths).length;
       if (candidate.md.paths === 0) {
         fs.unlinkSync(candidate.md.filename);
-        delete candidate.parent[o.info.version];
+        delete candidate.parent[candidate.version];
       }
       console.log(ng.colour.green+'p:'+candidate.md.paths,ng.colour.normal);
     }
@@ -221,6 +240,14 @@ const commands = {
     console.log(ng.colour.green+'✔'+ng.colour.normal);
     return true;
   },
+  docs: async function(candidate) {
+    let docpath = path.resolve('.','deploy','docs',candidate.provider,candidate.service);
+    await mkdirp(docpath);
+    docpath += '/'+candidate.version+'.html';
+    const html = await htmlTemplate.render({ url: getApiUrl(candidate,'.json'), title: candidate.md.filename } );
+    fs.writeFileSync(docpath,html,'utf8');
+    console.log(ng.colour.green+'🗎'+ng.colour.normal);
+  },
   validate: async function(candidate) {
     const s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
@@ -228,7 +255,7 @@ const commands = {
   },
   ci: async function(candidate) {
     const diff = Math.round(Math.abs((ng.now - new Date(candidate.md.updated)) / dayMs));
-    if (diff <= 2.0) {
+    if (diff <= 1.1) {
       const s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
       return await validateObj(o,s,candidate,candidate.md.filename);
@@ -246,17 +273,34 @@ const commands = {
         const org = o;
         const candidate = { md: { source: { url: u }, valid: false } };
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
-        if (valid) {
+        if (valid || argv.force) {
           if (valOpt.patches > 0) {
             o = valOpt.openapi;
           }
           let ou = u;
           if (o.servers) {
+            if (argv.host) {
+              let url = argv.host;
+              if (!url.startsWith('http')) {
+                url = 'http://'+argv.host; // not https as likely a .local placeholder
+              }
+              o.servers.unshift({ url: url });
+            }
             ou = o.servers[0].url;
           }
           if (o.host) {
+            if (argv.host) o.host = argv.host;
             ou = o.host;
           }
+
+          if (argv.logo) {
+            if (!o.info['x-logo']) {
+              o.info['x-logo'] = {};
+            }
+            o.info['x-logo'].url = argv.logo;
+          }
+          // TODO if there is a logo.url try and fetch/cache it
+
           const provider = getProvider(ou);
           const service = argv.service || '';
 
@@ -294,6 +338,9 @@ const commands = {
           o.info['x-providerName'] = provider;
           if (service) {
             o.info['x-serviceName'] = service;
+          }
+          if (argv.unofficial) {
+            o.info['x-unofficialSpec'] = true;
           }
           if (!o.info['x-origin']) {
             o.info['x-origin'] = [];
@@ -482,8 +529,8 @@ function rssFeed(data) {
 
 function getApiUrl(candidate, ext) {
   let result = 'https://api.apis.guru/v2/specs/'+candidate.provider;
-  if (candidate.service) result += '/'+candidate.service;
-  result += candidate.version + '/' + (candidate.md.openapi.startsWith('3.') ? 'openapi' : 'swagger') + ext;
+  if (candidate.service) result += '/' + candidate.service;
+  result += '/' + candidate.version + '/' + (candidate.md.openapi.startsWith('3.') ? 'openapi' : 'swagger') + ext;
   return result;
 }
 
@@ -504,6 +551,12 @@ function badges(metrics) {
      fs.writeFileSync(badgepath+'/'+badge.name,svg,'utf8');
   }
 }
+
+const startUp = {
+  docs: async function(candidates) {
+    htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','redoc.html'),'utf8'));
+  }
+};
 
 const wrapUp = {
   deploy: async function(candidates) {
@@ -538,6 +591,9 @@ const wrapUp = {
     catch (ex) {
       console.warn(ng.colour.red+ex.message+ng.colour.normal);
     }
+  },
+  docs: async function(candidates) {
+    fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'),'utf8');
   }
 };
 
@@ -555,18 +611,22 @@ async function main(command, pathspec) {
 
   if (command === 'add') {
     await commands[command](pathspec,metadata);
-    ng.saveMetadata();
+    ng.saveMetadata(command);
     return 1;
   }
 
   if (!argv.only) {
     const apis = await ng.gather(pathspec, command, argv.patch);
-    console.log(Object.keys(apis).length,'APIs scanned');
-    ng.populateMetadata(apis);
+    console.log(Object.keys(apis).length,'API files read');
+    ng.populateMetadata(apis, pathspec);
   }
   await ng.runDrivers(argv.only);
-  const candidates = ng.getCandidates(argv.only, ng.fastCommand(command));
+  const candidates = ng.getCandidates(argv.only);
   console.log(candidates.length,'candidates found');
+
+  if (startUp[command]) {
+    await startUp[command](candidates);
+  }
 
   let count = 0;
   let oldProvider = '*';
@@ -590,7 +650,7 @@ async function main(command, pathspec) {
     await wrapUp[command](candidates);
   }
 
-  ng.saveMetadata();
+  ng.saveMetadata(command);
   return candidates.length;
 }
 
