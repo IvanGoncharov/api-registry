@@ -89,7 +89,7 @@ function sortJson(json) {
   });
 
   //detect OpenAPI format
-  if (!json.openapi && !json.swagger) {
+  if (!json.openapi && !json.swagger && !json.asyncapi) {
     return json;
   }
 
@@ -99,6 +99,8 @@ function sortJson(json) {
     'host',
     'basePath',
     'openapi',
+    'asyncapi',
+    'id',
     'servers',
     'x-hasEquivalentPaths',
     'info',
@@ -111,6 +113,9 @@ function sortJson(json) {
     'responses',
     'tags',
     'paths',
+    'baseTopic',
+    'topics',
+    'channels',
     'definitions',
     'components'
   ];
@@ -234,9 +239,9 @@ function populateMetadata(apis, pathspec) {
     if (serviceName) comp.pop();
     comp.pop(); // providerName
     const filepath = comp.join('/');
-    const origin = clone(api.info['x-origin']) || [ {} ];
+    const origin = clone(api.info['x-origin']) || [ {} ]; // clone so we don't affect API object itself
     const source = origin.pop();
-    const history = api.info['x-origin'];
+    const history = origin; // what's left
     const entry = { name, openapi, preferred, filename, source, history, hash: api.hash, run: true, runDate: now };
     if (api.patch && Object.keys(api.patch).length) {
       entry.patch = api.patch;

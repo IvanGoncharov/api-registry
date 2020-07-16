@@ -22,6 +22,7 @@ const removeMarkdown = require('remove-markdown');
 const j2x = require('jgexml/json2xml.js');
 const shields = require('badge-maker').makeBadge;
 const liquid = require('liquid');
+const semver = require('semver');
 
 const ng = require('./index.js');
 
@@ -42,12 +43,13 @@ if (argv.l) argv.logo = argv.l;
 if (argv.t) argv.twitter = argv.t;
 if (argv.c) argv.categories = argv.c;
 if (argv.f) argv.force = argv.f;
+if (argv.d) argv.debug = argv.d;
 if (argv.i) argv.issue = argv.i;
 if (argv.u) argv.unofficial = argv.u;
 
 let oasCache = {};
-const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
-const valOpt = { patch: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'once' } };
+const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const valOpt = { patch: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 
@@ -68,6 +70,7 @@ function getProvider(u) {
     const up = url.parse(u);
     domain = up.host;
   }
+  if (typeof domain === 'string') domain = domain.replace('api.','');
   return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
 }
 
@@ -87,14 +90,19 @@ async function validateObj(o,s,candidate,source) {
       // TODO
     }
     process.stdout.write('V');
-    await validator.validate(o, valOpt);
-    result = valOpt;
+    if (o.openapi) {
+      await validator.validate(o, valOpt);
+      result = valOpt;
+    }
+    else if (o.asyncapi) {
+      result.valid = true; // TODO
+    }
     if (!result.valid) throw new Error('Validation failure');
   }
   catch (ex) {
     console.log();
     console.warn(ng.colour.red+ex.message+ng.colour.normal);
-    //console.warn(ex);
+    if (argv.debug) console.warn(ex);
     let context;
     if (valOpt.context) {
       context = valOpt.context.pop();
@@ -116,7 +124,7 @@ async function retrieve(u) {
   let s;
   if (u.startsWith('http')) {
     process.stdout.write('F');
-    response = await fetch(u, {timeout:1000, agent:agent(u), logToConsole:false, cacheFolder: mainCache, refresh: 'once'});
+    response = await fetch(u, {timeout:1000, agent:agent(u), logToConsole:false, cacheFolder: mainCache, refresh: 'default'});
     if (response.ok) {
       s = await response.text();
     }
@@ -216,7 +224,7 @@ const commands = {
       catch (ex) {
         colour = ng.colour.red;
         console.warn(ng.colour.red+ex.message+ng.colour.normal);
-        //console.warn(ex);
+        if (argv.debug) console.warn(ex);
         const res = await fetch(defaultLogo, {timeout:1000, agent:agent(defaultLogo), cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
       }
@@ -264,7 +272,7 @@ const commands = {
       console.log(ng.colour.yellow+'🕓'+ng.colour.normal);
     }
   },
-  add: async function(u,metadata) {
+  add: async function(u, metadata) {
     process.stdout.write(u+' ');
     try {
       const result = await retrieve(u);
@@ -316,7 +324,7 @@ const commands = {
           if (org.openapi) {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'openapi';
-            candidate.md.source.version = org.openapi.substr(0,3); // TODO FIXME properly
+            candidate.md.source.version = semver.major(org.openapi)+'.'+semver.minor(org.openapi);
             candidate.md.openapi = org.openapi;
           }
           else if (org.swagger) {
@@ -324,6 +332,12 @@ const commands = {
             candidate.md.source.format = 'swagger';
             candidate.md.source.version = org.swagger;
             candidate.md.openapi = o.openapi ? o.openapi : o.swagger;
+          }
+          else if (org.asyncapi) {
+            candidate.md.name = 'asyncapi.yaml';
+            candidate.md.source.format = 'asyncapi';
+            candidate.md.source.version = semver.major(org.asyncapi)+'.'+semver.minor(org.asyncapi);
+            candidate.md.asyncapi = org.asyncapi;
           }
           if (o.info && o.info.version === '') {
             o.info.version = '1.0.0';
@@ -360,7 +374,7 @@ const commands = {
 
           const content = yaml.stringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
-          candidate.md.paths = Object.keys(o.paths).length;
+          candidate.md.paths = Object.keys(o.paths || o.topics).length; // TODO rename paths property
           fs.writeFileSync(filename,content,'utf8');
           console.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
@@ -371,7 +385,7 @@ const commands = {
     }
     catch (ex) {
       console.warn(ng.colour.red+ex.message+ng.colour.normal);
-      //console.warn(ex);
+      if (argv.debug) console.warn(ex);
     }
   },
   update: async function(candidate) {
@@ -403,20 +417,24 @@ const commands = {
 
           let openapiVer = (o.openapi ? o.openapi : o.swagger);
           if ((o.info && (o.info.version !== candidate.version)) || (openapiVer !== candidate.md.openapi)) {
-            console.log('  Updated to',o.info.version,openapiVer);
+            console.log('  Updated to',o.info.version,'in OpenAPI',openapiVer);
             if (o.info.version !== candidate.version) {
               candidate.parent[o.info.version] = candidate.parent[candidate.version];
               delete candidate.parent[candidate.version];
             }
-            // TODO update metadata source
             const ofname = candidate.md.filename;
             candidate.md.filename = candidate.md.filename.replace(candidate.version,o.info.version);
-            if (o.openapi) candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
+            if (o.openapi) {
+              candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
+              candidate.md.name = 'openapi.yaml';
+              candidate.md.source.format = 'openapi';
+              candidate.md.source.version = semver.major(o.openapi)+'.'+semver.minor(o.openapi);
+            }
             const pathname = path.dirname(candidate.md.filename);
             mkdirp.sync(pathname);
             ng.exec('mv '+ofname+' '+candidate.md.filename);
           }
-          o = deepmerge(o,candidate.md.patch);
+          if (candidate.md.patch) o = deepmerge(o,candidate.md.patch);
           delete o.info.logo; // TODO nytimes hack (masked by conv stage)
           if (o.info['x-apisguru-categories']) {
             o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
@@ -436,7 +454,7 @@ const commands = {
             candidate.md.hash = newHash;
             candidate.md.updated = ng.now;
           }
-          candidate.md.paths = Object.keys(o.paths).length;
+          candidate.md.paths = Object.keys(o.paths||o.topics).length;
           delete candidate.md.statusCode;
         }
         else { // if not valid
@@ -453,8 +471,7 @@ const commands = {
       if (ex.timings) delete ex.timings;
       console.log();
       console.warn(ng.colour.red+ex.message,ex.response ? ex.response.statusCode : '',ng.colour.normal);
-      //console.warn(ex);
-      if (!ex.message) console.warn(ex);
+      if (argv.debug || !ex.message) console.warn(ex);
       let r = ex.response;
       if (r) {
         candidate.md.statusCode = r.status;
@@ -610,7 +627,7 @@ async function main(command, pathspec) {
   const metadata = ng.loadMetadata();
 
   if (command === 'add') {
-    await commands[command](pathspec,metadata);
+    await commands[command](pathspec, metadata);
     ng.saveMetadata(command);
     return 1;
   }
@@ -637,7 +654,7 @@ async function main(command, pathspec) {
       valOpt.cache = oasCache;
       oldProvider = candidate.provider;
     }
-    process.stdout.write(candidate.provider+' '+candidate.driver+' '+candidate.service+' '+candidate.version+' ');
+    process.stdout.write(candidate.provider+' '+candidate.driver+' '+(candidate.service||'-')+' '+candidate.version+' ');
     await commands[command](candidate);
     //delete valOpt.cache[resOpt.source];
 
@@ -666,7 +683,7 @@ if (command === 'deploy') {
   mkdirp.sync(logoPath);
 }
 let pathspec = argv._[3];
-if (!pathspec) pathspec = path.resolve('.','APIs');
+if (!pathspec) pathspec = path.relative('.','APIs');
 
 process.on('exit', function() {
   console.log('Exiting with',process.exitCode);

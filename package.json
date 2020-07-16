@@ -28,6 +28,7 @@
     "oas-validator": "^4.0.6",
     "parse-domain": "^3.0.2",
     "remove-markdown": "^0.3.0",
+    "semver": "^7.3.2",
     "swagger2openapi": "^6.2.1",
     "tiny-opts-parser": "0.0.3",
     "urijs": "^1.19.2",
