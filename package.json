@@ -21,6 +21,7 @@
     "deepmerge": "^4.2.2",
     "fetch-filecache-for-crawling": "^4.0.2",
     "jgexml": "^0.4.3",
+    "liquid": "^4.0.1",
     "mkdirp": "^1.0.4",
     "node-readfiles": "^0.2.0",
     "oas-resolver": "^2.4.1",

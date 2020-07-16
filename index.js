@@ -45,7 +45,8 @@ function fail(candidate,status,err,context) {
 }
 
 function fastCommand(command) {
-  return ((command === 'ci') || (command == 'add') || (command === 'paths'));
+  return ((command === 'ci') || (command == 'add') || (command === 'paths')
+    || (command === 'purge') || (command === 'validate'));
 }
 
 const driverFuncs = {
@@ -134,7 +135,7 @@ function loadMetadata() {
   return metadata;
 }
 
-function saveMetadata() {
+function saveMetadata(command) {
   console.log('Saving metadata...');
   let metaStr;
   try {
@@ -156,7 +157,7 @@ function saveMetadata() {
     fs.writeFileSync(path.resolve('.','metadata','temp.js'),util.inspect(metadata,{depth:Infinity}),'utf8');
   }
   try {
-    fs.writeFileSync(path.resolve('.','metadata','failures.yaml'),yaml.stringify(failures),'utf8');
+    fs.writeFileSync(path.resolve('.','metadata',command+'_failures.yaml'),yaml.stringify(failures),'utf8');
   }
   catch (ex) {
     console.warn(colour.red+ex.message+colour.normal);
@@ -197,12 +198,25 @@ async function gather(pathspec, command, slow) {
   return apis;
 }
 
-function populateMetadata(apis) {
+function populateMetadata(apis, pathspec) {
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         metadata[provider].apis[service][version].run = false;
+      }
+    }
+  }
+
+  if (Object.keys(apis).length === 0) {
+    for (let provider in metadata) {
+      for (let service in metadata[provider].apis) {
+        for (let version in metadata[provider].apis[service]) {
+          let md = metadata[provider].apis[service][version];
+          if (md.filename.startsWith(pathspec)) {
+            md.run = true;
+          }
+        }
       }
     }
   }
@@ -263,15 +277,15 @@ async function runDrivers(only) {
   return drivers;
 }
 
-function getCandidates(driver, override) {
+function getCandidates(driver) {
   const result = [];
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
-        if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run || override) {
+        if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
           const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], md: metadata[provider].apis[service][version] };
-          entry.info = apis[entry.md.filename].info;
+          if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
           result.push(entry);
         }
       }
