@@ -20,6 +20,7 @@
     "deep-sort-object": "^1.0.2",
     "deepmerge": "^4.2.2",
     "fetch-filecache-for-crawling": "^4.0.2",
+    "google-discovery-to-swagger": "git://github.com/apis-guru/google-discovery-to-swagger.git#openapi3",
     "jgexml": "^0.4.3",
     "liquid": "^4.0.1",
     "mkdirp": "^1.0.4",
