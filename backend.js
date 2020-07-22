@@ -2,13 +2,14 @@
 
 'use strict';
 
+// TODO logging ws support for API?
+
 const cp = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
 
-const deepmerge = require('deepmerge');
 const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
@@ -17,15 +18,30 @@ const yaml = require('yaml');
 const now = new Date();
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
-    { red: '', yellow: '', green: '', normal: '' } :
-    { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m' };
+    { red: '', yellow: '', green: '', normal: '', clear: '' } :
+    { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\x1b[1M' };
 
 let metadata = {};
 let apis = {};
 const failures = {};
 
+let logger = {
+  prepend(s) {
+    process.stdout.write(s);
+  },
+  log(...p) {
+    console.log(...p);
+  },
+  warn(...p) {
+    console.warn(...p);
+  },
+  error(...p) {
+    console.error(...p);
+  }
+};
+
 function exec(command) {
-  console.log(colour.yellow+command+colour.normal);
+  logger.log(colour.yellow+command+colour.normal);
   return cp.execSync(command);
 }
 
@@ -46,7 +62,8 @@ function fail(candidate,status,err,context) {
 
 function fastCommand(command) {
   return ((command === 'ci') || (command == 'add') || (command === 'paths')
-    || (command === 'purge') || (command === 'validate'));
+    || (command === 'purge') || (command === 'validate') || (command === '404')
+    || (command === 'urls') || (command === 'contact') || (command === 'retry'));
 }
 
 const driverFuncs = {
@@ -59,28 +76,32 @@ const driverFuncs = {
     return true;
   },
   apisjson: async function(provider,md) {
-    console.log('  ',md.masterUrl);
+    logger.log('  ',md.masterUrl);
     // TODO use a generic json catalog driver with a jmespath
     return true;
   },
   html: async function(provider,md) {
-    console.log('  ',md.masterUrl);
+    logger.log('  ',md.masterUrl);
     // TODO use a cheerio DOM selector and an optional regex for replacement
     return true;
   },
   google: async function(provider,md) {
-    console.log('  ',md.masterUrl);
+    logger.log('  ',md.masterUrl);
     // may be able to use generic json catalog driver
     return true;
   },
   github: async function(provider,md) {
-    console.log('  ',md.masterUrl);
-    mkdirp.sync('./metadata/'+provider+'.cache');
+    logger.log('  ',md.masterUrl);
+    await mkdirp('./metadata/'+provider+'.cache');
     // TODO use fetch and a nodejs tar implementation
     // TODO allow for authentication
     return exec('wget -O- '+md.masterUrl+' | tar -C ./metadata/'+provider+'.cache --wildcards '+md.glob+' -xz');
   }
 };
+
+function registerDriver(drv) {
+  driverFuncs[drv.name] = drv.run;
+}
 
 function sortJson(json) {
   json = sortobject(json, function (a, b) {
@@ -141,18 +162,18 @@ function loadMetadata() {
 }
 
 function saveMetadata(command) {
-  console.log('Saving metadata...');
+  logger.log('Saving metadata...');
   let metaStr;
   try {
-    metaStr = yaml.stringify(metadata);
+    metaStr = yaml.stringify(metadata,{prettyErrors:true});
   }
   catch (ex) {
-    console.warn(colour.red+ex.message+colour.normal);
+    logger.warn(colour.red,ex,colour.normal);
     try {
-      metaStr = JSON.stringify(metadata);
+      metaStr = JSON.stringify(metadata,null,2);
     }
     catch (ex) {
-      console.warn(colour.red+ex.message+colour.normal);
+      logger.warn(colour.red+ex.message+colour.normal);
     }
   }
   if (metaStr) {
@@ -165,13 +186,13 @@ function saveMetadata(command) {
     fs.writeFileSync(path.resolve('.','metadata',command+'_failures.yaml'),yaml.stringify(failures),'utf8');
   }
   catch (ex) {
-    console.warn(colour.red+ex.message+colour.normal);
+    logger.warn(colour.red+ex.message+colour.normal);
   }
   return (typeof metaStr === 'string');
 }
 
 async function gather(pathspec, command, slow) {
-  console.log('Gathering...');
+  logger.log('Gathering...');
   apis = {};
   if (fastCommand(command)) return apis;
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
@@ -183,20 +204,16 @@ async function gather(pathspec, command, slow) {
       }
       const fdir = path.dirname(filename);
       if (slow) {
-        let patch = {};
-        let patchfile = path.join(fdir,'patch.yaml');
+        let patchfile = path.join(fdir,'..','patch.yaml');
         if (fs.existsSync(patchfile)) {
-          patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
-        }
-        patchfile = path.join(fdir,'..','patch.yaml');
-        if (fs.existsSync(patchfile)) {
-          patch = deepmerge(patch,yaml.parse(fs.readFileSync(patchfile,'utf8')));
+          const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
+          if (Object.keys(patch).length) apis[filename].parentPatch = patch;
         }
         patchfile = path.join(fdir,'..','..','patch.yaml');
         if (fs.existsSync(patchfile)) {
-          patch = deepmerge(patch,yaml.parse(fs.readFileSync(patchfile,'utf8')));
+          const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
+          if (Object.keys(patch).length) apis[filename].patch = patch;
         }
-        if (Object.keys(patch).length) apis[filename].patch = patch;
       }
     }
   });
@@ -236,25 +253,30 @@ function populateMetadata(apis, pathspec) {
     const serviceName = api.info['x-serviceName'] ? api.info['x-serviceName'] : '';
     const providerName = api.info['x-providerName'];
     const preferred = (typeof api.info['x-preferred'] === 'boolean') ? api.info['x-preferred'] : undefined;
+    const unofficial = !!api.info['x-unofficialSpec'];
     if (serviceName) comp.pop();
     comp.pop(); // providerName
     const filepath = comp.join('/');
     const origin = clone(api.info['x-origin']) || [ {} ]; // clone so we don't affect API object itself
     const source = origin.pop();
     const history = origin; // what's left
-    const entry = { name, openapi, preferred, filename, source, history, hash: api.hash, run: true, runDate: now };
-    if (api.patch && Object.keys(api.patch).length) {
-      entry.patch = api.patch;
-    }
+    const entry = { name, openapi, preferred, unofficial, filename, source, history, hash: api.hash, run: true, runDate: now };
 
     if (!metadata[providerName]) metadata[providerName] = { driver: 'url', apis: {} };
+    if (api.parentPatch && Object.keys(api.parentPatch).length) {
+      metadata[providerName].patch = api.parentPatch;
+    }
     if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
+    if (api.patch && Object.keys(api.patch).length) {
+      metadata[providerName].apis[serviceName].patch = api.patch;
+    }
     if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
 
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
     if (!metadata[providerName].apis[serviceName][version].added) {
       metadata[providerName].apis[serviceName][version].added = now;
     }
+    delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME
 
     let driverProviders = drivers.get(metadata[providerName].driver);
     if (driverProviders) {
@@ -274,7 +296,7 @@ async function runDrivers(only) {
     const providers = drivers.get(driver);
     for (let provider of providers.keys()) {
       if (!only || driver === only) {
-        console.log('Running driver',driver,'for',provider);
+        logger.log('Running driver',driver,'for',provider);
         await driverFuncs[driver](provider,providers.get(provider));
       }
     }
@@ -288,10 +310,12 @@ function getCandidates(driver) {
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
-        if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
-          const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], md: metadata[provider].apis[service][version] };
-          if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
-          result.push(entry);
+        if (version !== 'patch') {
+          if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
+            const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
+            if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
+            result.push(entry);
+          }
         }
       }
     }
@@ -302,6 +326,7 @@ function getCandidates(driver) {
 
 module.exports = {
   colour,
+  logger,
   sortJson,
   clone,
   exec,
@@ -311,6 +336,7 @@ module.exports = {
   now,
   loadMetadata,
   saveMetadata,
+  registerDriver,
   gather,
   populateMetadata,
   runDrivers,
