@@ -60,10 +60,8 @@ function fail(candidate,status,err,context) {
     { status, err:(err ? err.message : ''), context };
 }
 
-function fastCommand(command) {
-  return ((command === 'ci') || (command == 'add') || (command === 'paths')
-    || (command === 'purge') || (command === 'validate') || (command === '404')
-    || (command === 'urls') || (command === 'contact') || (command === 'retry'));
+function slowCommand(command) {
+  return (command === 'populate');
 }
 
 const driverFuncs = {
@@ -191,10 +189,10 @@ function saveMetadata(command) {
   return (typeof metaStr === 'string');
 }
 
-async function gather(pathspec, command, slow) {
-  logger.log('Gathering...');
+async function gather(pathspec, command, argv) {
   apis = {};
-  if (fastCommand(command)) return apis;
+  if (!slowCommand(command)) return apis;
+  logger.log('Gathering...');
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
       const obj = yaml.parse(content);
@@ -203,7 +201,7 @@ async function gather(pathspec, command, slow) {
         apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
       }
       const fdir = path.dirname(filename);
-      if (slow) {
+      if (argv.slow) { // TODO can be removed when separate patch files removed
         let patchfile = path.join(fdir,'..','patch.yaml');
         if (fs.existsSync(patchfile)) {
           const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
@@ -220,12 +218,14 @@ async function gather(pathspec, command, slow) {
   return apis;
 }
 
-function populateMetadata(apis, pathspec) {
+function populateMetadata(apis, pathspec, argv) {
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
-        metadata[provider].apis[service][version].run = false;
+        if (version !== 'patch') {
+          metadata[provider].apis[service][version].run = false;
+        }
       }
     }
   }
@@ -234,9 +234,13 @@ function populateMetadata(apis, pathspec) {
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
         for (let version in metadata[provider].apis[service]) {
-          let md = metadata[provider].apis[service][version];
-          if (md.filename.startsWith(pathspec)) {
-            md.run = true;
+          if (version !== 'patch') {
+            let md = metadata[provider].apis[service][version];
+            if (md.filename.startsWith(pathspec)) {
+              if (!argv.small || Object.keys(metadata[provider].apis).length < 50) {
+                md.run = true;
+              }
+            }
           }
         }
       }
@@ -304,7 +308,8 @@ async function runDrivers(only) {
   return drivers;
 }
 
-function getCandidates(driver) {
+function getCandidates(argv) {
+  const driver = argv.only;
   const result = [];
 
   for (let provider in metadata) {
@@ -332,7 +337,6 @@ module.exports = {
   exec,
   sha256,
   fail,
-  fastCommand,
   now,
   loadMetadata,
   saveMetadata,
