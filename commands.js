@@ -43,6 +43,8 @@ const mainCache = path.resolve('.','metadata','main.cache');
 
 const liquidEngine = new liquid.Engine();
 
+yaml.scalarOptions.str.fold.lineWidth = 0;
+
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const valOpt = { patch: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
@@ -134,12 +136,14 @@ async function retrieve(u) {
     }
   }
   else if (u.startsWith('file')) {
+    ng.logger.prepend('L');
     const filename = url.fileURLToPath(u);
     s = fs.readFileSync(filename,'utf8');
     response.status = 200;
     response.ok = true;
   }
   else {
+    ng.logger.prepend('L');
     s = fs.readFileSync(u,'utf8');
     response.status = 200;
     response.ok = true;
@@ -365,6 +369,7 @@ const commands = {
           if (!metadata[provider].apis[service]) {
             metadata[provider].apis[service] = {};
           }
+          candidate.parent = metadata[provider].apis[service];
           candidate.md.added = ng.now;
           candidate.md.updated = ng.now;
           candidate.md.history = [];
@@ -456,6 +461,7 @@ const commands = {
       let o = {};
       let autoUpgrade = false;
       if (result && result.response.ok) {
+        delete candidate.md.statusCode;
         const s = result.text;
         o = yaml.parse(s);
         const valid = await validateObj(o,s,candidate,candidate.md.source.url);
@@ -518,13 +524,16 @@ const commands = {
             candidate.md.updated = ng.now;
           }
           candidate.md.paths = Object.keys(o.paths||o.topics||{}).length;
-          delete candidate.md.statusCode;
         }
         else { // if not valid
           return false;
         }
       }
       else { // if not status 200 OK
+        candidate.md.statusCode = result.response.status;
+        if (result.response.headers) {
+          candidate.md.mediatype = result.response.headers.get('content-type');
+        }
         ng.fail(candidate,result.response.status);
         ng.logger.log(ng.colour.red,result.response.status,ng.colour.normal);
         return false;
@@ -712,12 +721,15 @@ async function main(command, pathspec, options) {
   }
 
   if (!argv.only) {
-    const apis = await ng.gather(pathspec, command, argv.patch);
-    ng.logger.log(Object.keys(apis).length,'API files read');
-    ng.populateMetadata(apis, pathspec);
+    const apis = await ng.gather(pathspec, command, argv);
+    const len = Object.keys(apis).length;
+    if (len) {
+      ng.logger.log(len,'API files read');
+    }
+    ng.populateMetadata(apis, pathspec, argv);
   }
   await ng.runDrivers(argv.only);
-  const candidates = ng.getCandidates(argv.only);
+  const candidates = ng.getCandidates(argv);
   ng.logger.log(candidates.length,'candidates found');
 
   if (startUp[command]) {
