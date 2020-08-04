@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 
+const fetch = require('fetch-filecache-for-crawling');
 const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
@@ -23,6 +24,7 @@ const colour = process.env.NODE_DISABLE_COLORS ?
 
 let metadata = {};
 let apis = {};
+let leads = {};
 const failures = {};
 
 let logger = {
@@ -85,7 +87,11 @@ const driverFuncs = {
   },
   google: async function(provider,md) {
     logger.log('  ',md.masterUrl);
-    // may be able to use generic json catalog driver
+    const res = await fetch(md.masterUrl);
+    const discovery = await res.json();
+    for (let item of discovery.items) {
+      leads[item.discoveryRestUrl] = item.name;
+    }
     return true;
   },
   github: async function(provider,md) {
@@ -281,16 +287,6 @@ function populateMetadata(apis, pathspec, argv) {
       metadata[providerName].apis[serviceName][version].added = now;
     }
     delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME
-
-    let driverProviders = drivers.get(metadata[providerName].driver);
-    if (driverProviders) {
-      driverProviders.set(providerName,metadata[providerName]);
-    }
-    else {
-      const providers = new Map();
-      providers.set(providerName,metadata[providerName]);
-      drivers.set(metadata[providerName].driver,providers);
-    }
   }
   return metadata;
 }
@@ -320,6 +316,15 @@ function getCandidates(argv) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);
+            let driverProviders = drivers.get(metadata[provider].driver);
+            if (driverProviders) {
+              driverProviders.set(provider,metadata[provider]);
+            }
+            else {
+              const providers = new Map();
+              providers.set(provider,metadata[provider]);
+              drivers.set(metadata[provider].driver,providers);
+            }
           }
         }
       }
@@ -327,6 +332,21 @@ function getCandidates(argv) {
   }
 
   return result;
+}
+
+function trimLeads(candidates) {
+  if (Object.keys(leads).length) {
+    for (let candidate of candidates) {
+      if (leads[candidate.md.source.url]) {
+        delete leads[candidate.md.source.url];
+      }
+    }
+  }
+  const leadsLen = Object.keys(leads).length;
+  if (leadsLen) {
+    logger.log(leadsLen,'new leads');
+  }
+  return leads;
 }
 
 module.exports = {
@@ -344,6 +364,7 @@ module.exports = {
   gather,
   populateMetadata,
   runDrivers,
-  getCandidates
+  getCandidates,
+  trimLeads
 };
 

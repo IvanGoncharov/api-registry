@@ -728,9 +728,17 @@ async function main(command, pathspec, options) {
     }
     ng.populateMetadata(apis, pathspec, argv);
   }
-  await ng.runDrivers(argv.only);
   const candidates = ng.getCandidates(argv);
   ng.logger.log(candidates.length,'candidates found');
+  await ng.runDrivers(argv.only);
+
+  const leads = ng.trimLeads(candidates);
+  if ((command === 'update') && (Object.keys(leads).length)) {
+    for (let u in leads) {
+      argv.service = leads[u];
+      await commands.add(u, metadata);
+    }
+  }
 
   if (startUp[command]) {
     await startUp[command](candidates);
