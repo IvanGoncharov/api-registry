@@ -21,6 +21,7 @@ const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\x1b[1M' };
+const indexCache = path.resolve('.','metadata','index.cache');
 
 let metadata = {};
 let apis = {};
@@ -77,7 +78,17 @@ const driverFuncs = {
   },
   apisjson: async function(provider,md) {
     logger.log('  ',md.masterUrl);
-    // TODO use a generic json catalog driver with a jmespath
+    // TODO use a generic json catalog driver with a jmespath?
+    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
+    const apisjson = await res.json();
+    for (let api of apisjson.apis) {
+      for (let property of api.properties) {
+        if (property.type === 'Swagger') {
+          const serviceName = property.url.split('/').pop().replace('.json','');
+          leads[property.url] = serviceName;
+        }
+      }
+    }
     return true;
   },
   html: async function(provider,md) {
@@ -87,7 +98,7 @@ const driverFuncs = {
   },
   google: async function(provider,md) {
     logger.log('  ',md.masterUrl);
-    const res = await fetch(md.masterUrl);
+    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
     const discovery = await res.json();
     for (let item of discovery.items) {
       leads[item.discoveryRestUrl] = item.name;
