@@ -323,7 +323,7 @@ function getCandidates(argv) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         if (version !== 'patch') {
-          if ((driver && driver === metadata[provider].driver) || metadata[provider].apis[service][version].run) {
+          if ((driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run)) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);
