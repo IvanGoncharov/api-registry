@@ -370,6 +370,7 @@ const commands = {
             metadata[provider].apis[service] = {};
           }
           candidate.parent = metadata[provider].apis[service];
+          candidate.gp = metadata[provider];
           candidate.md.added = ng.now;
           candidate.md.updated = ng.now;
           candidate.md.history = [];
@@ -418,6 +419,8 @@ const commands = {
             o.info['x-origin'] = [];
           }
           o.info['x-origin'].push(candidate.md.source);
+
+          o = deepmerge(o,candidate.gp.patch||{});
 
           const patch = {};
           if (argv.categories) {
