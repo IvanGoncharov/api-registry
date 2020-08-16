@@ -86,7 +86,7 @@ async function validateObj(o,s,candidate,source) {
       ng.logger.prepend('R');
       await resolver.resolve(o,source,resOpt);
       o = resOpt.openapi;
-   }
+    }
     if (o.swagger && o.swagger == '2.0') {
       ng.logger.prepend('C');
       await s2o.convertObj(o, valOpt);
@@ -458,7 +458,7 @@ const commands = {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
-    // TODO github, google, apisjson etc
+    // TODO github etc
     try {
       const result = await retrieve(u);
       let o = {};
