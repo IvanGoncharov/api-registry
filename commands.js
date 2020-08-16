@@ -223,20 +223,20 @@ const commands = {
       ng.logger.log();
     }
   },
-  paths: async function(candidate) {
+  endpoints: async function(candidate) {
     try {
       let s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
-      candidate.md.paths = Object.keys(o.paths).length;
-      if (candidate.md.paths === 0) {
+      candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
+      if (candidate.md.endpoints === 0) {
         fs.unlinkSync(candidate.md.filename);
         delete candidate.parent[candidate.version];
       }
-      ng.logger.log(ng.colour.green+'p:'+candidate.md.paths,ng.colour.normal);
+      ng.logger.log(ng.colour.green+'p:'+candidate.md.endpoints,ng.colour.normal);
     }
     catch (ex) {
       ng.logger.log(ng.colour.red+ex.message,ng.colour.normal);
-      ng.fail(candidate,null,ex,'paths');
+      ng.fail(candidate,null,ex,'endpoints');
     }
   },
   cache: async function(candidate) {
@@ -437,7 +437,7 @@ const commands = {
 
           const content = yaml.stringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
-          candidate.md.paths = Object.keys(o.paths || o.topics).length; // TODO rename paths property
+          candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
           fs.writeFileSync(filename,content,'utf8');
           ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
@@ -502,8 +502,6 @@ const commands = {
           o = deepmerge(o,candidate.gp.patch||{});
           o = deepmerge(o,candidate.parent.patch||{});
 
-          //delete o.info.logo; // TODO nytimes hack (masked by conv stage)
-
           if (o.info['x-apisguru-categories']) {
             o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
           }
@@ -523,7 +521,7 @@ const commands = {
             candidate.md.hash = newHash;
             candidate.md.updated = ng.now;
           }
-          candidate.md.paths = Object.keys(o.paths||o.topics||{}).length;
+          candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
         }
         else { // if not valid
           return false;
@@ -652,13 +650,13 @@ const startUp = {
 
 const wrapUp = {
   deploy: async function(candidates) {
-    let totalPaths = 0;
+    let totalEndpoints = 0;
     const list = {};
 
     ng.logger.log('API list...');
 
     for (let candidate of candidates) {
-      totalPaths += candidate.md.paths;
+      totalEndpoints += candidate.md.endpoints;
       let key = candidate.provider;
       if (candidate.service) key += ':'+candidate.service;
       if (!list.key) list[key] = { added: candidate.md.added, preferred: candidate.version, versions: {} };
@@ -668,7 +666,7 @@ const wrapUp = {
     const metrics = {
       numSpecs: candidates.length,
       numAPIs: Object.keys(list).length,
-      numEndpoints: totalPaths
+      numEndpoints: totalEndpoints
     };
     badges(metrics);
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
