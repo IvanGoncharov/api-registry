@@ -302,11 +302,11 @@ function populateMetadata(apis, pathspec, argv) {
   return metadata;
 }
 
-async function runDrivers(only) {
+async function runDrivers(selectedDriver) {
   for (let driver of drivers.keys()) {
     const providers = drivers.get(driver);
     for (let provider of providers.keys()) {
-      if (!only || driver === only) {
+      if (!selectedDriver || driver === selectedDriver) {
         logger.log('Running driver',driver,'for',provider);
         await driverFuncs[driver](provider,providers.get(provider));
       }
@@ -316,7 +316,7 @@ async function runDrivers(only) {
 }
 
 function getCandidates(argv) {
-  const driver = argv.only;
+  const driver = argv.driver;
   const result = [];
 
   for (let provider in metadata) {

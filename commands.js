@@ -499,7 +499,9 @@ const commands = {
             }
             const pathname = path.dirname(candidate.md.filename);
             mkdirp.sync(pathname);
-            ng.exec('mv '+ofname+' '+candidate.md.filename); // TODO use shelljs ?
+            if (ofname !== candidate.md.filename) {
+              ng.exec('mv '+ofname+' '+candidate.md.filename); // TODO use shelljs ?
+            }
           }
 
           o = deepmerge(o,candidate.gp.patch||{});
@@ -721,7 +723,7 @@ async function main(command, pathspec, options) {
     return 1;
   }
 
-  if (!argv.only) {
+  if (!argv.driver) {
     const apis = await ng.gather(pathspec, command, argv);
     const len = Object.keys(apis).length;
     if (len) {
@@ -731,7 +733,7 @@ async function main(command, pathspec, options) {
   }
   const candidates = ng.getCandidates(argv);
   ng.logger.log(candidates.length,'candidates found');
-  await ng.runDrivers(argv.only);
+  await ng.runDrivers(argv.driver);
 
   const leads = ng.trimLeads(candidates);
   if ((command === 'update') && (Object.keys(leads).length)) {
