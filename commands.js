@@ -513,7 +513,7 @@ const commands = {
             const pathname = path.dirname(candidate.md.filename);
             mkdirp.sync(pathname);
             if (ofname !== candidate.md.filename) {
-              ng.exec('mv '+ofname+' '+candidate.md.filename); // TODO use shelljs ?
+              ng.exec("mv '"+ofname+"' '"+candidate.md.filename+"'"); // TODO use shelljs ?
             }
           }
 
