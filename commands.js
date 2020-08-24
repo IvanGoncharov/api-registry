@@ -129,11 +129,18 @@ async function fix(candidate, o) {
 async function retrieve(u) {
   let response = { status: 599, ok: false };
   let s;
+  let ok;
   if (u.startsWith('http')) {
     ng.logger.prepend('F');
     response = await fetch(u, {logToConsole: argv.verbose, timeout:3500, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
-    if (response.ok) {
+    if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
+      ok = true;
+    }
+    if (response.ok || ok) {
       s = await response.text();
+      if (ok) {
+        response = Object.assign({},response,{ ok: true, status: 200 });
+      }
     }
   }
   else if (u.startsWith('file')) {
