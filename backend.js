@@ -68,6 +68,10 @@ function slowCommand(command) {
 }
 
 const driverFuncs = {
+  nop: async function(provider,md) {
+    // nop
+    return true;
+  },
   url: async function(provider,md) {
     // nop
     return true;
