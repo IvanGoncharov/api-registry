@@ -202,7 +202,12 @@ const commands = {
   },
   '404': async function(candidate) {
     if (parseInt(candidate.md.statusCode,10) >= 400) {
-      ng.logger.log('🔗 ',ng.colour.red+candidate.md.source.url+ng.colour.normal);
+      const patch = Object.assign({},candidate.parent.patch,candidate.gp.patch);
+      let twitter = '';
+      if (patch && patch.info && patch.info.contact && patch.info.contact["x-twitter"]) {
+        twitter = '@'+patch.info.contact["x-twitter"];
+      }
+      ng.logger.log('🔗 ',ng.colour.red+candidate.md.source.url+ng.colour.normal,twitter);
     }
     else {
       ng.logger.prepend(ng.colour.clear);
