@@ -57,13 +57,14 @@ const template = function(templateString, templateVars) {
   return new Function("return `"+templateString +"`;").call(templateVars);
 }
 
-function getProvider(u) {
+function getProvider(u, source) {
+  const absUrl = new URL(u, source);
+  const abs = absUrl.toString();
   let {subDomains, domain, topLevelDomains} = pd.parseDomain(
-    pd.fromUrl(u)
+    pd.fromUrl(abs)
   );
   if (!domain) {
-    const up = url.parse(u);
-    domain = up.host;
+    domain = absUrl.host;
   }
   if (typeof domain === 'string') domain = domain.replace('api.','');
   if (topLevelDomains && topLevelDomains[0] === 'googleapis') {
@@ -360,7 +361,7 @@ const commands = {
           }
           // TODO if there is a logo.url try and fetch/cache it
 
-          const provider = getProvider(ou);
+          const provider = getProvider(ou, u);
           const service = argv.service || '';
 
           if (!metadata[provider]) {
