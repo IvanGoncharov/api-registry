@@ -11,6 +11,7 @@ const path = require('path');
 const util = require('util');
 
 const fetch = require('fetch-filecache-for-crawling');
+const jmespath = require('jmespath').search;
 const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
@@ -82,7 +83,6 @@ const driverFuncs = {
   },
   apisjson: async function(provider,md) {
     logger.log('  ',md.masterUrl);
-    // TODO use a generic json catalog driver with a jmespath?
     const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
     const apisjson = await res.json();
     for (let api of apisjson.apis) {
@@ -92,6 +92,20 @@ const driverFuncs = {
           leads[property.url] = serviceName;
         }
       }
+    }
+    return true;
+  },
+  catalog: async function(provider,md) {
+    logger.log('  ',md.masterUrl);
+    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
+    const catalog = await res.json();
+    const services = jmespath(catalog, md.serviceQuery);
+    const urls = jmespath(catalog, md.urlQuery);
+    for (let u in urls) {
+      urls[u] = new URL(urls[u][0], md.masterUrl).toString();
+    }
+    for (let i=0;i<services.length;i++) {
+      leads[urls[i]] = services[i][0];
     }
     return true;
   },
@@ -182,6 +196,9 @@ function loadMetadata() {
 
 function saveMetadata(command) {
   logger.log('Saving metadata...');
+  if (command === 'add') {
+    metadata = sortobject(metadata);
+  }
   let metaStr;
   try {
     metaStr = yaml.stringify(metadata,{prettyErrors:true});
@@ -257,7 +274,7 @@ function populateMetadata(apis, pathspec, argv) {
         for (let version in metadata[provider].apis[service]) {
           if (version !== 'patch') {
             let md = metadata[provider].apis[service][version];
-            if (md.filename.startsWith(pathspec)) {
+            if (md.filename && md.filename.startsWith(pathspec)) {
               if (!argv.small || Object.keys(metadata[provider].apis).length < 50) {
                 md.run = true;
               }

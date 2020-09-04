@@ -3,6 +3,7 @@
 
 'use strict';
 
+const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
@@ -24,6 +25,7 @@ const shields = require('badge-maker').makeBadge;
 const liquid = require('liquid');
 const semver = require('semver');
 const google = require('google-discovery-to-swagger');
+const postman = require('postman2openapi');
 
 const ng = require('./backend.js');
 
@@ -68,7 +70,7 @@ function getProvider(u, source) {
   }
   if (typeof domain === 'string') domain = domain.replace('api.','');
   if (topLevelDomains && topLevelDomains[0] === 'googleapis') {
-    return 'googleapis.com';
+    return 'googleapis.com'; // FIXME hard-coded
   }
   return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
 }
@@ -81,7 +83,15 @@ async function validateObj(o,s,candidate,source) {
       ng.logger.prepend('C');
       o = google.convert(o);
       valOpt.openapi = o;
-      valOpt.patches = 1; // force conversion
+      valOpt.patches = 1; // force taking from valOpt.openapi
+    }
+    else if (o.info && o.info._postman_id) {
+      ng.logger.prepend('C');
+      s = s.split('{{server}}').join(argv.host);
+      s = s.split('{{baseURL}}').join(argv.host);
+      o = JSON.parse(postman.transpile(s,'json'));
+      valOpt.openapi = o;
+      valOpt.patches = 1; // force taking from valOpt.openapi
     }
     else { // $ref doesn't mean a JSON Reference in google discovery land
       ng.logger.prepend('R');
@@ -91,7 +101,7 @@ async function validateObj(o,s,candidate,source) {
     if (o.swagger && o.swagger == '2.0') {
       ng.logger.prepend('C');
       await s2o.convertObj(o, valOpt);
-      o = valOpt.openapi; //? working? using openapi object in options
+      o = valOpt.openapi; // for tests below, we extract it from options outside this func
     }
     else {
       // TODO
@@ -374,6 +384,7 @@ const commands = {
           // TODO if there is a logo.url try and fetch/cache it
 
           const provider = getProvider(ou, u);
+          assert.ok(provider,'Provider not defined');
           const service = argv.service || '';
 
           if (!metadata[provider]) {
@@ -409,6 +420,12 @@ const commands = {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'google';
             candidate.md.source.version = org.discoveryVersion;
+            candidate.md.openapi = o.openapi;
+          }
+          else if (org.info && org.info._postman_id) {
+            candidate.md.name = 'openapi.yaml';
+            candidate.md.source.format = 'postman';
+            candidate.md.source.version = '2.x';
             candidate.md.openapi = o.openapi;
           }
           if (o.info && o.info.version === '') {
@@ -482,10 +499,6 @@ const commands = {
         o = yaml.parse(s);
         const valid = await validateObj(o,s,candidate,candidate.md.source.url);
         if (valid) {
-          if (o.info && o.info.version === '') {
-            o.info.version = '1.0.0';
-          }
-
           // TODO if there is a logo.url try and fetch/cache it
 
           if ((valOpt.patches > 0) || (candidate.md.autoUpgrade)) {
@@ -493,6 +506,10 @@ const commands = {
             // therefore the original OAS 2 document might not be valid as-is
             o = valOpt.openapi;
             autoUpgrade = true;
+          }
+
+          if (o.info && (o.info.version === '')) {
+            o.info.version = '1.0.0';
           }
 
           let openapiVer = (o.openapi ? o.openapi : o.swagger);
@@ -503,7 +520,7 @@ const commands = {
               delete candidate.parent[candidate.version];
             }
             const ofname = candidate.md.filename;
-            candidate.md.filename = candidate.md.filename.replace(candidate.version,o.info.version);
+            candidate.md.filename = candidate.md.filename.replace('/'+candidate.version+'/','/'+o.info.version+'/');
             if (o.openapi) {
               candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
               candidate.md.name = 'openapi.yaml';
