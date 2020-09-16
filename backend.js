@@ -239,7 +239,7 @@ async function gather(pathspec, command, argv) {
         apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
       }
       const fdir = path.dirname(filename);
-      if (argv.slow) { // TODO can be removed when separate patch files removed
+      if (argv.patch) { // TODO can be removed when separate patch files removed
         let patchfile = path.join(fdir,'..','patch.yaml');
         if (fs.existsSync(patchfile)) {
           const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
