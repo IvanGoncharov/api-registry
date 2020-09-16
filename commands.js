@@ -104,7 +104,7 @@ async function validateObj(o,s,candidate,source) {
       o = valOpt.openapi; // for tests below, we extract it from options outside this func
     }
     else {
-      // TODO
+      // TODO other formats
     }
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
@@ -112,7 +112,7 @@ async function validateObj(o,s,candidate,source) {
       result = valOpt;
     }
     else if (o.asyncapi) {
-      result.valid = true; // TODO
+      result.valid = true; // TODO validate asyncapi
     }
     if (!result.valid) throw new Error('Validation failure');
   }
@@ -381,7 +381,15 @@ const commands = {
             }
             o.info['x-logo'].url = argv.logo;
           }
-          // TODO if there is a logo.url try and fetch/cache it
+          if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
+            let colour = ng.colour.red;
+            try {
+              await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
+              colour = ng.colour.green;
+            }
+            catch (ex) {}
+            ng.logger.prepend(colour+'📷 '+ng.colour.normal);
+          }
 
           const provider = getProvider(ou, u);
           assert.ok(provider,'Provider not defined');
@@ -499,7 +507,7 @@ const commands = {
         o = yaml.parse(s);
         const valid = await validateObj(o,s,candidate,candidate.md.source.url);
         if (valid) {
-          // TODO if there is a logo.url try and fetch/cache it
+          // TODO if there is a logo.url try and fetch/cache it (if changed?)
 
           if ((valOpt.patches > 0) || (candidate.md.autoUpgrade)) {
             // passed validation as OAS 3 but only by patching the source
