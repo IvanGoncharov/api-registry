@@ -26,6 +26,8 @@ const liquid = require('liquid');
 const semver = require('semver');
 const google = require('google-discovery-to-swagger');
 const postman = require('postman2openapi');
+const apib2swagger = require('apib2swagger');
+const apiBlueprint = util.promisify(apib2swagger.convert);
 
 const ng = require('./backend.js');
 
@@ -142,7 +144,7 @@ async function retrieve(u) {
   let ok;
   if (u.startsWith('http')) {
     ng.logger.prepend('F');
-    response = await fetch(u, {logToConsole: argv.verbose, timeout:3500, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
+    response = await fetch(u, {logToConsole: argv.verbose, timeout:5000, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
     if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
       ok = true;
     }
@@ -167,6 +169,15 @@ async function retrieve(u) {
     response.ok = true;
   }
   return { response, text:s }
+}
+
+async function getObjFromText(text, candidate) {
+  if (text.startsWith('FORMAT: ')) {
+    const result = await apiBlueprint(text,{});
+    candidate.md.autoUpgrade = true;
+    return result.swagger;
+  }
+  else return yaml.parse(text);
 }
 
 const commands = {
@@ -346,17 +357,37 @@ const commands = {
       ng.logger.log(ng.colour.yellow+'🕓'+ng.colour.normal);
     }
   },
+  check: async function(u, metadata) {
+    ng.logger.prepend(u+' ');
+    try {
+      const result = await retrieve(u);
+      if (result.response.ok) {
+        const candidate = { md: { source: { url: u }, valid: false } };
+        let o = await getObjFromText(result.text, candidate);
+        const org = o;
+        const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
+        ng.logger.log(valid);
+      }
+      else {
+        ng.logger.warn(ng.colour.red,result.response.status,ng.colour.normal);
+      }
+    }
+    catch (ex) {
+      ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+      if (argv.debug) ng.logger.warn(ex);
+    }
+  },
   add: async function(u, metadata) {
     ng.logger.prepend(u+' ');
     try {
       const result = await retrieve(u);
       if (result.response.ok) {
-        let o = yaml.parse(result.text);
-        const org = o;
         const candidate = { md: { source: { url: u }, valid: false } };
+        let o = await getObjFromText(result.text, candidate);
+        const org = o;
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valid || argv.force) {
-          if (valOpt.patches > 0) {
+          if ((valOpt.patches > 0) || candidate.md.autoUpgrade) {
             o = valOpt.openapi;
           }
           let ou = u;
@@ -413,7 +444,12 @@ const commands = {
             candidate.md.openapi = org.openapi;
           }
           else if (org.swagger) {
-            candidate.md.name = 'swagger.yaml';
+            if (o.openapi) {
+              candidate.md.name = 'openapi.yaml';
+            }
+            else {
+              candidate.md.name = 'swagger.yaml';
+            }
             candidate.md.source.format = 'swagger';
             candidate.md.source.version = org.swagger;
             candidate.md.openapi = o.openapi ? o.openapi : o.swagger;
@@ -504,7 +540,7 @@ const commands = {
       if (result && result.response.ok) {
         delete candidate.md.statusCode;
         const s = result.text;
-        o = yaml.parse(s);
+        o = await getObjFromText(s, candidate);
         const valid = await validateObj(o,s,candidate,candidate.md.source.url);
         if (valid) {
           // TODO if there is a logo.url try and fetch/cache it (if changed?)
@@ -755,7 +791,7 @@ async function main(command, pathspec, options) {
   argv = options;
   const metadata = ng.loadMetadata();
 
-  if (command === 'add') {
+  if ((command === 'add') || (command === 'check')) {
     await commands[command](pathspec, metadata);
     ng.saveMetadata(command);
     return 1;
