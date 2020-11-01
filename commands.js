@@ -391,7 +391,10 @@ const commands = {
             o = valOpt.openapi;
           }
           let ou = u;
-          if (o.servers) {
+          if (!o.host) {
+            if (!o.servers) {
+              o.servers = [];
+            }
             if (argv.host) {
               let url = argv.host;
               if (!url.startsWith('http')) {
