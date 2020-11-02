@@ -180,6 +180,20 @@ async function getObjFromText(text, candidate) {
   else return yaml.parse(text);
 }
 
+function updatePreferredFlag(candidate, flag) {
+  try {
+    const s = fs.readFileSync(candidate.md.filename,'utf8');
+    const api = yaml.parse(s);
+    api.info["x-preferred"] = flag;
+    fs.writeFileSync(candidate.md.filename,yaml.stringify(api),'utf8');
+    candidate.md.preferred = flag;
+  }
+  catch (ex) {
+    ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+  }
+  return candidate;
+}
+
 const commands = {
   populate: async function(candidate) {
     ng.logger.log('pop');
@@ -611,6 +625,11 @@ const commands = {
       }
       else { // if not status 200 OK
         candidate.md.statusCode = result.response.status;
+        if (candidate.md.preferred === true) {
+          // can't be preferred if no longer available
+          // need to write this back even though update failed
+          updatePreferredFlag(candidate, false);
+        }
         if (result.response.headers) {
           candidate.md.mediatype = result.response.headers.get('content-type');
         }
@@ -766,6 +785,9 @@ const wrapUp = {
   },
   docs: async function(candidates) {
     fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'),'utf8');
+  },
+  update: async function(candidates) {
+    // TODO check x-preferred, use added to sort potentials if none true
   }
 };
 
