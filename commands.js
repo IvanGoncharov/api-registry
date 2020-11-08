@@ -138,10 +138,15 @@ async function fix(candidate, o) {
   // TODO use jmespath queries to fix up stuff
 }
 
-async function retrieve(u) {
+async function retrieve(u, cached) {
   let response = { status: 599, ok: false };
   let s;
   let ok;
+
+  if (cached) {
+    u = url.pathToFileURL(cached).toString();
+  }
+
   if (u.startsWith('http')) {
     ng.logger.prepend('F');
     response = await fetch(u, {logToConsole: argv.verbose, timeout:5000, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
@@ -190,8 +195,13 @@ function updatePreferredFlag(candidate, flag) {
   }
   catch (ex) {
     ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+    if (argv.debug) ng.logger.warn(ex);
   }
   return candidate;
+}
+
+function countEndpoints(o) {
+  return Object.keys(o.paths||o.topics||o.channels||{}).length;
 }
 
 const commands = {
@@ -275,7 +285,7 @@ const commands = {
     try {
       let s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
-      candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
+      candidate.md.endpoints = countEndpoints(o);
       if (candidate.md.endpoints === 0) {
         fs.unlinkSync(candidate.md.filename);
         delete candidate.parent[candidate.version];
@@ -394,7 +404,7 @@ const commands = {
   add: async function(u, metadata) {
     ng.logger.prepend(u+' ');
     try {
-      const result = await retrieve(u);
+      const result = await retrieve(u, argv.cached);
       if (result.response.ok) {
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
@@ -531,7 +541,7 @@ const commands = {
 
           const content = yaml.stringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
-          candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
+          candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
           ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
@@ -549,9 +559,8 @@ const commands = {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
-    // TODO github etc
     try {
-      const result = await retrieve(u);
+      const result = await retrieve(u, candidate.md.cached);
       let o = {};
       let autoUpgrade = false;
       if (result && result.response.ok) {
@@ -609,15 +618,13 @@ const commands = {
           if (typeof candidate.md.preferred === 'boolean') o.info['x-preferred'] = candidate.md.preferred;
           if (candidate.md.unofficial) o.info['x-unofficialSpec'] = true;
           const content = yaml.stringify(ng.sortJson(o));
-          fs.writeFile(candidate.md.filename,content,'utf8',function(err){
-            if (err) ng.logger.warn(err);
-          });
+          fs.writeFileSync(candidate.md.filename,content,'utf8');
           const newHash = ng.sha256(content);
           if (candidate.md.hash !== newHash) {
             candidate.md.hash = newHash;
             candidate.md.updated = ng.now;
           }
-          candidate.md.endpoints = Object.keys(o.paths||o.topics||{}).length;
+          candidate.md.endpoints = countEndpoints(o);
         }
         else { // if not valid
           return false;
@@ -787,7 +794,39 @@ const wrapUp = {
     fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'),'utf8');
   },
   update: async function(candidates) {
-    // TODO check x-preferred, use added to sort potentials if none true
+    const services = {};
+    for (let candidate of candidates) {
+      let key = candidate.provider;
+      if (candidate.service) key += ':'+candidate.service;
+      if (!services.key) services[key] = { versions: {} };
+      services[key].versions[candidate.version] = candidate;
+    }
+    for (let key in services) {
+      const versions = services[key].versions;
+      let numPreferred = 0;
+      let preferredVersion = '';
+      let maxAdded = new Date(0); // 1970
+      for (let version in versions) {
+        let candidate = versions[version];
+        if (candidate.md.preferred) {
+          numPreferred++;
+        }
+        const d = new Date(candidate.md.added);
+        if (d > maxAdded) {
+          maxAdded = d;
+          preferredVersion = version;
+        }
+      }
+      if (numPreferred !== 1) {
+        for (let version in versions) {
+          let candidate = versions[version];
+          const newPreferred = (version === preferredVersion);
+          if (candidate.md.preferred !== newPreferred) {
+            updatePreferredFlag(candidate, newPreferred);
+          }
+        }
+      }
+    }
   }
 };
 
@@ -837,7 +876,8 @@ async function main(command, pathspec, options) {
   const leads = ng.trimLeads(candidates);
   if ((command === 'update') && (Object.keys(leads).length)) {
     for (let u in leads) {
-      argv.service = leads[u];
+      argv.service = leads[u].service;
+      argv.cached = leads[u].file;
       await commands.add(u, metadata);
     }
   }

@@ -89,7 +89,7 @@ const driverFuncs = {
       for (let property of api.properties) {
         if (property.type === 'Swagger') {
           const serviceName = property.url.split('/').pop().replace('.json','');
-          leads[property.url] = serviceName;
+          leads[property.url] = { service: serviceName };
         }
       }
     }
@@ -105,7 +105,7 @@ const driverFuncs = {
       urls[u] = new URL(urls[u][0], md.masterUrl).toString();
     }
     for (let i=0;i<services.length;i++) {
-      leads[urls[i]] = services[i][0];
+      leads[urls[i]] = { service: services[i][0] };
     }
     return true;
   },
@@ -119,16 +119,26 @@ const driverFuncs = {
     const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
     const discovery = await res.json();
     for (let item of discovery.items) {
-      leads[item.discoveryRestUrl] = item.name;
+      leads[item.discoveryRestUrl] = { service: item.name };
     }
     return true;
   },
   github: async function(provider,md) {
-    logger.log('  ',md.masterUrl);
-    await mkdirp('./metadata/'+provider+'.cache');
+    logger.log('  ',md.org,md.repo,md.branch,md.glob);
+    await mkdirp(`./metadata/${provider}.cache`);
     // TODO use fetch and a nodejs tar implementation
     // TODO allow for authentication
-    return exec('wget -O- '+md.masterUrl+' | tar -C ./metadata/'+provider+'.cache --wildcards '+md.glob+' -xz');
+    const codeloadUrl = `https://codeload.github.com/${md.org}/${md.repo}/tar.gz/${md.branch}`;
+    exec(`wget -O- ${codeloadUrl} | tar -C ./metadata/${provider}.cache --wildcards ${md.repo}-${md.branch}/${md.glob} -xz`);
+    const fileArr = await rf(`./metadata/${provider}.cache/${md.repo}-${md.branch}`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
+    for (let file of fileArr) {
+      const fileUrl = `https://raw.githubusercontent.com/${md.org}/${md.repo}/${md.branch}/${file}`;
+      // TODO way to extract service can differ between providers
+      let service = path.basename(file,path.extname(file));
+      service = service.split('-v')[0];
+      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',md.repo+'-'+md.branch,file), service };
+    }
+    return true;
   }
 };
 
@@ -370,6 +380,7 @@ function trimLeads(candidates) {
   if (Object.keys(leads).length) {
     for (let candidate of candidates) {
       if (leads[candidate.md.source.url]) {
+        candidate.md.cached = leads[candidate.md.source.url].file;
         delete leads[candidate.md.source.url];
       }
     }
