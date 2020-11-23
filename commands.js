@@ -205,6 +205,10 @@ function countEndpoints(o) {
 }
 
 const commands = {
+  checkpref: async function(candidate) {
+    ng.logger.log('nop');
+    return true;
+  },
   populate: async function(candidate) {
     ng.logger.log('pop');
     return true;
@@ -269,6 +273,9 @@ const commands = {
   rewrite: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
+    if (o.info) {
+      o.info['x-preferred'] = candidate.md.preferred;
+    }
     fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
     ng.logger.log('rw');
   },
@@ -798,7 +805,9 @@ const wrapUp = {
     for (let candidate of candidates) {
       let key = candidate.provider;
       if (candidate.service) key += ':'+candidate.service;
-      if (!services.key) services[key] = { versions: {} };
+      if (!services[key]) {
+        services[key] = { versions: {} };
+      }
       services[key].versions[candidate.version] = candidate;
     }
     for (let key in services) {
@@ -812,12 +821,17 @@ const wrapUp = {
           numPreferred++;
         }
         const d = new Date(candidate.md.added);
-        if (d > maxAdded) {
+        if (d >= maxAdded) {
           maxAdded = d;
           preferredVersion = version;
         }
       }
-      if (numPreferred !== 1) {
+      if (Object.keys(versions).length === 1) {
+        let candidate = versions[preferredVersion];
+        updatePreferredFlag(candidate, undefined);
+      }
+      if ((Object.keys(versions).length > 1)) { // && (numPreferred !== 1)) {
+        ng.logger.log(key,numPreferred,preferredVersion,maxAdded);
         for (let version in versions) {
           let candidate = versions[version];
           const newPreferred = (version === preferredVersion);
@@ -829,6 +843,7 @@ const wrapUp = {
     }
   }
 };
+wrapUp.checkpref = wrapUp.update;
 
 function analyseOpt(options) { // show size of each bucket in oas-kit options
   let result = {};
@@ -897,7 +912,6 @@ async function main(command, pathspec, options) {
     }
     ng.logger.prepend(candidate.provider+' '+candidate.driver+' '+(candidate.service||'-')+' '+candidate.version+' ');
     await commands[command](candidate);
-    //delete valOpt.cache[resOpt.source];
 
     //let voa = analyseOpt(valOpt);
     //fs.writeFileSync('./valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
