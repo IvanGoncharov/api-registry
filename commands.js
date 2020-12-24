@@ -108,6 +108,9 @@ async function validateObj(o,s,candidate,source) {
     else {
       // TODO other formats
     }
+    if (o.info && typeof o.info.version !== 'string') {
+      o.info.version = o.info.version.toString();
+    }
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
       await validator.validate(o, valOpt);
@@ -462,6 +465,15 @@ const commands = {
 
           if (!metadata[provider]) {
             metadata[provider] = { driver: 'url', apis: {} };
+          }
+          else {
+            for (let service in metadata[provider].apis) {
+              let apis = metadata[provider].apis[service];
+              for (let version in apis) {
+                const api = apis[version];
+                if (api.source) assert.ok(api.source.url !== u,'URL already in metadata');
+              }
+            }
           }
           if (!metadata[provider].apis[service]) {
             metadata[provider].apis[service] = {};
