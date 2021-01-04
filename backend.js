@@ -347,7 +347,7 @@ async function runDrivers(selectedDriver) {
 }
 
 function getCandidates(argv) {
-  const driver = argv.driver;
+  const driver = (argv.driver === 'none' ? undefined : argv.driver);
   const result = [];
 
   for (let provider in metadata) {
