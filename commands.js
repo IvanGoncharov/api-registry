@@ -109,7 +109,7 @@ async function validateObj(o,s,candidate,source) {
       // TODO other formats
     }
     if (o.info && typeof o.info.version !== 'string') {
-      o.info.version = o.info.version.toString();
+      o.info.version = (o.info.version || '1.0.0').toString();
     }
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
