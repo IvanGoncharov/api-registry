@@ -28,8 +28,11 @@ const google = require('google-discovery-to-swagger');
 const postman = require('postman2openapi');
 const apib2swagger = require('apib2swagger');
 const apiBlueprint = util.promisify(apib2swagger.convert);
+const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 
 const ng = require('./backend.js');
+
+yaml.defaultOptions = { prettyErrors: true };
 
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
@@ -51,7 +54,7 @@ yaml.scalarOptions.str.fold.lineWidth = 0;
 
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
-const valOpt = { patch: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const valOpt = { patch: true, repair: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
@@ -323,6 +326,23 @@ const commands = {
     candidate.md.source = candidate.md.history.pop();
     ng.logger.log('cache');
   },
+  favicon: async function(candidate) {
+    const icon = await fetchFavicon('https://'+candidate.provider);
+    if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
+      ng.logger.log('📷',icon);
+      if (!candidate.parent.patch) {
+        candidate.parent.patch = {};
+      }
+      if (!candidate.parent.patch.info) {
+        candidate.parent.patch.info = {};
+      }
+      if (!candidate.parent.patch.info['x-logo']) {
+        candidate.parent.patch.info['x-logo'] = {};
+      }
+      candidate.parent.patch.info['x-logo'].url = icon;
+      // requires a manual update step currently to refresh definition
+    }
+  },
   deploy: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
@@ -449,14 +469,19 @@ const commands = {
             }
             o.info['x-logo'].url = argv.logo;
           }
+
           if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
             let colour = ng.colour.red;
             try {
-              await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
+              const res = await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
+              // TODO check status and media-type = 'image/*'
               colour = ng.colour.green;
             }
             catch (ex) {}
             ng.logger.prepend(colour+'📷 '+ng.colour.normal);
+          }
+          else {
+            // TODO get favicon
           }
 
           const provider = getProvider(ou, u);
