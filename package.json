@@ -16,6 +16,7 @@
   "author": "Mike Ralphson",
   "license": "MIT",
   "dependencies": {
+    "@astridhq/fetch-favicon": "0.0.4-rc.3",
     "apib2swagger": "^1.12.0",
     "badge-maker": "^3.3.0",
     "deep-sort-object": "^1.0.2",
@@ -35,7 +36,7 @@
     "semver": "^7.3.2",
     "swagger2openapi": "^7.0.3",
     "tiny-opts-parser": "0.0.3",
-    "urijs": "^1.19.2",
+    "urijs": "^1.19.5",
     "yaml": "^1.10.0"
   },
   "devDependencies": {},

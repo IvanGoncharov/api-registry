@@ -17,6 +17,8 @@ const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
 const yaml = require('yaml');
 
+yaml.defaultOptions = { prettyErrors: true };
+
 const now = new Date();
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
@@ -347,14 +349,15 @@ async function runDrivers(selectedDriver) {
 }
 
 function getCandidates(argv) {
-  const driver = (argv.driver === 'none' ? undefined : argv.driver);
+  const returnAll = (argv.driver === 'none');
+  const driver = (returnAll ? undefined : argv.driver);
   const result = [];
 
   for (let provider in metadata) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         if (version !== 'patch') {
-          if ((driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run)) {
+          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run)) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);
