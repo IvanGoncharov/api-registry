@@ -484,6 +484,10 @@ const commands = {
             // TODO get favicon
           }
 
+          if (argv.desclang) {
+            o.info['x-description-language'] = argv.desclang;
+          }
+
           const provider = getProvider(ou, u);
           assert.ok(provider,'Provider not defined');
           const service = argv.service || '';
@@ -577,6 +581,10 @@ const commands = {
           if (argv.logo) {
             if (!patch.info) patch.info = {};
             patch.info['x-logo'] = o.info['x-logo'];
+          }
+          if (argv.desclang) {
+            if (!patch.info) patch.info = {};
+            patch.info['x-description-language'] = o.info['x-description-language'];
           }
 
           if (Object.keys(patch).length) {
