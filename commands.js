@@ -783,7 +783,7 @@ function rssFeed(data) {
 function getApiUrl(candidate, ext) {
   let result = 'https://api.apis.guru/v2/specs/'+candidate.provider;
   if (candidate.service) result += '/' + candidate.service;
-  result += '/' + candidate.version + '/' + ((candidate.md.openapi||'').startsWith('3.') ? 'openapi' : 'swagger') + ext;
+  result += '/' + candidate.version + '/' + ((candidate.md.name||'').replace('.yaml','')) + ext;
   return result;
 }
 
