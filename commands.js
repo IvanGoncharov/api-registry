@@ -344,6 +344,10 @@ const commands = {
     }
   },
   deploy: async function(candidate) {
+    if (argv.dashboard) {
+      ng.logger.log();
+      return true;
+    }
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
     const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg';
@@ -656,6 +660,8 @@ const commands = {
             }
           }
 
+          // TODO set converter in origin if necessary
+
           o = deepmerge(o,candidate.gp.patch||{});
           o = deepmerge(o,candidate.parent.patch||{});
 
@@ -777,7 +783,7 @@ function rssFeed(data) {
 function getApiUrl(candidate, ext) {
   let result = 'https://api.apis.guru/v2/specs/'+candidate.provider;
   if (candidate.service) result += '/' + candidate.service;
-  result += '/' + candidate.version + '/' + (candidate.md.openapi.startsWith('3.') ? 'openapi' : 'swagger') + ext;
+  result += '/' + candidate.version + '/' + ((candidate.md.openapi||'').startsWith('3.') ? 'openapi' : 'swagger') + ext;
   return result;
 }
 
@@ -786,10 +792,12 @@ function badges(metrics) {
   ng.logger.log('Badges...');
   mkdirp.sync(badgepath);
   const badges = [
-    { label: 'APIs in collection', name: 'apis_in_collection.svg', prop: 'numAPIs', color: 'orange' },
-    { label: 'Endpoints', name: 'endpoints.svg', prop: 'numEndpoints', color: 'red' },
-    { label: 'OpenAPI Specs', name: 'openapi_specs.svg', prop: 'numSpecs', color: 'yellow' },
-    { label: '🐝 Tested on', name: 'tested_on.svg', prop: 'numSpecs', color: 'green' }
+    { label: 'APIs in directory', name: 'apis_in_collection.svg', prop: 'numAPIs', color: 'orange' },
+    { label: 'Endpoints', name: 'endpoints.svg', prop: 'numEndpoints', color: 'cyan' },
+    { label: 'OpenAPI Docs', name: 'openapi_specs.svg', prop: 'numSpecs', color: 'yellow' },
+    { label: '🐝 Tested on', name: 'tested_on.svg', prop: 'numSpecs', color: 'green' },
+    { label: '✗ Invalid at source', name: 'invalid.svg', prop: 'invalid', color: (metrics.invalid === 0 ? 'green' : 'red') },
+    { label: '🖧  Unreachable', name: 'unreachable.svg', prop: 'unreachable', color: (metrics.unreachable === 0 ? 'green' : 'red') }
   ];
   for (let badge of badges) {
      const format = { label: badge.label, message: metrics[badge.prop].toString(), color: badge.color };
@@ -811,12 +819,23 @@ const startUp = {
 const wrapUp = {
   deploy: async function(candidates) {
     let totalEndpoints = 0;
+    let unreachable = 0;
+    let invalid = 0;
+    let unofficial = 0;
     const list = {};
 
     ng.logger.log('API list...');
 
     for (let candidate of candidates) {
       totalEndpoints += candidate.md.endpoints;
+      if (candidate.md.valid === false) invalid++;
+      if (candidate.md.unofficial) unofficial++;
+      if (candidate.md.statusCode) {
+        const range = candidate.md.statusCode.toString().substr(0,1);
+        if ((range === '4') || (range === '5')) {
+          unreachable++;
+        }
+      }
       let key = candidate.provider;
       if (candidate.service) key += ':'+candidate.service;
       if (!list.key) list[key] = { added: candidate.md.added, preferred: candidate.version, versions: {} };
@@ -826,7 +845,10 @@ const wrapUp = {
     const metrics = {
       numSpecs: candidates.length,
       numAPIs: Object.keys(list).length,
-      numEndpoints: totalEndpoints
+      numEndpoints: totalEndpoints,
+      unreachable,
+      invalid,
+      unofficial
     };
     badges(metrics);
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
