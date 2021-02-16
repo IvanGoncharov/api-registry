@@ -19,6 +19,7 @@ const s2o = require('swagger2openapi');
 const resolver = require('oas-resolver');
 const validator = require('oas-validator');
 const yaml = require('yaml');
+const jsy = require('js-yaml');
 const removeMarkdown = require('remove-markdown');
 const j2x = require('jgexml/json2xml.js');
 const shields = require('badge-maker').makeBadge;
@@ -52,8 +53,10 @@ const liquidEngine = new liquid.Engine();
 
 yaml.scalarOptions.str.fold.lineWidth = 0;
 
+const newCandidates = [];
+
 let oasCache = {};
-const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const valOpt = { patch: true, repair: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
@@ -62,6 +65,29 @@ let argv = {};
 const template = function(templateString, templateVars) {
   // use this. for replaceable parameters
   return new Function("return `"+templateString +"`;").call(templateVars);
+}
+
+function getServer(o, u) {
+  let ou = u;
+  if (!o.host) {
+    if (!o.servers) {
+      o.servers = [];
+    }
+    if (argv.host) {
+      let url = argv.host;
+      if (!url.startsWith('http')) {
+        url = 'http://'+argv.host; // not https as likely a .local placeholder
+      }
+      o.servers.unshift({ url: url });
+    }
+    assert.ok(o.servers[0],'Must have determined servers by now');
+    ou = o.servers[0].url;
+  }
+  if (o.host) {
+    if (argv.host) o.host = argv.host;
+    ou = o.host;
+  }
+  return ou;
 }
 
 function getProvider(u, source) {
@@ -78,6 +104,16 @@ function getProvider(u, source) {
     return 'googleapis.com'; // FIXME hard-coded
   }
   return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
+}
+
+async function getFavicon(candidate) {
+  const icon = await fetchFavicon('https://'+candidate.provider);
+  if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
+    ng.logger.log('📷',icon);
+    candidate.parent.patch = ng.Tree(candidate.parent.patch); // doesn't create Trees recursively from init
+    candidate.parent.patch.info = ng.Tree(candidate.parent.patch.info);
+    candidate.parent.patch.info['x-logo'].url = icon;
+  }
 }
 
 async function validateObj(o,s,candidate,source) {
@@ -99,9 +135,11 @@ async function validateObj(o,s,candidate,source) {
       valOpt.patches = 1; // force taking from valOpt.openapi
     }
     else { // $ref doesn't mean a JSON Reference in google discovery land
-      ng.logger.prepend('R');
-      await resolver.resolve(o,source,resOpt);
-      o = resOpt.openapi;
+      if (!argv.stub) {
+        ng.logger.prepend('R');
+        await resolver.resolve(o,source,resOpt);
+        o = resOpt.openapi;
+      }
     }
     if (o.swagger && o.swagger == '2.0') {
       ng.logger.prepend('C');
@@ -188,7 +226,17 @@ async function getObjFromText(text, candidate) {
     candidate.md.autoUpgrade = true;
     return result.swagger;
   }
-  else return yaml.parse(text);
+  else {
+    let obj;
+    try {
+      obj = yaml.parse(text);
+    }
+    catch (ex) {
+      ng.logger.warn('Falling back to js-yaml...');
+      obj = jsy.load(text);
+    }
+    return obj;
+  }
 }
 
 function updatePreferredFlag(candidate, flag) {
@@ -229,6 +277,10 @@ const commands = {
   urls: async function(candidate) {
     ng.logger.log();
     ng.logger.log('🔗 ',ng.colour.yellow+candidate.md.source.url+ng.colour.normal);
+  },
+  metadata: async function(candidate) {
+    ng.logger.log();
+    ng.logger.log(yaml.stringify(candidate.md));
   },
   contact: async function(candidate) {
     ng.logger.log();
@@ -303,7 +355,7 @@ const commands = {
         fs.unlinkSync(candidate.md.filename);
         delete candidate.parent[candidate.version];
       }
-      ng.logger.log(ng.colour.green+'p:'+candidate.md.endpoints,ng.colour.normal);
+      ng.logger.log(ng.colour.green+'e:'+candidate.md.endpoints,ng.colour.normal);
     }
     catch (ex) {
       ng.logger.log(ng.colour.red+ex.message,ng.colour.normal);
@@ -327,26 +379,12 @@ const commands = {
     ng.logger.log('cache');
   },
   favicon: async function(candidate) {
-    const icon = await fetchFavicon('https://'+candidate.provider);
-    if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
-      ng.logger.log('📷',icon);
-      if (!candidate.parent.patch) {
-        candidate.parent.patch = {};
-      }
-      if (!candidate.parent.patch.info) {
-        candidate.parent.patch.info = {};
-      }
-      if (!candidate.parent.patch.info['x-logo']) {
-        candidate.parent.patch.info['x-logo'] = {};
-      }
-      candidate.parent.patch.info['x-logo'].url = icon;
-      // requires a manual update step currently to refresh definition
-    }
+    return await getFavicon(candidate);
   },
   deploy: async function(candidate) {
     if (argv.dashboard) {
       ng.logger.log();
-      return true;
+      return candidate;
     }
     let s = fs.readFileSync(candidate.md.filename,'utf8');
     const o = yaml.parse(s);
@@ -424,7 +462,9 @@ const commands = {
         let o = await getObjFromText(result.text, candidate);
         const org = o;
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
-        ng.logger.log(valid);
+        if (valOpt.openapi) o = valOpt.openapi;
+        let ou = getServer(o, u);
+        ng.logger.log(getProvider(ou, u));
       }
       else {
         ng.logger.warn(ng.colour.red,result.response.status,ng.colour.normal);
@@ -448,24 +488,30 @@ const commands = {
           if ((valOpt.patches > 0) || candidate.md.autoUpgrade) {
             o = valOpt.openapi;
           }
-          let ou = u;
-          if (!o.host) {
-            if (!o.servers) {
-              o.servers = [];
-            }
-            if (argv.host) {
-              let url = argv.host;
-              if (!url.startsWith('http')) {
-                url = 'http://'+argv.host; // not https as likely a .local placeholder
+          let ou = getServer(o, u);
+
+          const provider = getProvider(ou, u);
+          candidate.provider = provider;
+          assert.ok(provider,'Provider not defined');
+          const service = argv.service || '';
+          candidate.service = service;
+          if (!metadata[provider]) {
+            metadata[provider] = { driver: 'url', apis: {} };
+          }
+          else {
+            for (let service in metadata[provider].apis) {
+              let apis = metadata[provider].apis[service];
+              for (let version in apis) {
+                const api = apis[version];
+                if (api.source) assert.ok(api.source.url !== u,'URL already in metadata');
               }
-              o.servers.unshift({ url: url });
             }
-            ou = o.servers[0].url;
           }
-          if (o.host) {
-            if (argv.host) o.host = argv.host;
-            ou = o.host;
+          if (!metadata[provider].apis[service]) {
+            metadata[provider].apis[service] = {};
           }
+          candidate.parent = metadata[provider].apis[service];
+          candidate.gp = metadata[provider];
 
           if (argv.logo) {
             if (!o.info['x-logo']) {
@@ -484,38 +530,18 @@ const commands = {
             catch (ex) {}
             ng.logger.prepend(colour+'📷 '+ng.colour.normal);
           }
-          else {
-            // TODO get favicon
+          else if (provider.indexOf('.local') < 0) {
+            await getFavicon(candidate);
           }
 
           if (argv.desclang) {
             o.info['x-description-language'] = argv.desclang;
           }
 
-          const provider = getProvider(ou, u);
-          assert.ok(provider,'Provider not defined');
-          const service = argv.service || '';
-
-          if (!metadata[provider]) {
-            metadata[provider] = { driver: 'url', apis: {} };
-          }
-          else {
-            for (let service in metadata[provider].apis) {
-              let apis = metadata[provider].apis[service];
-              for (let version in apis) {
-                const api = apis[version];
-                if (api.source) assert.ok(api.source.url !== u,'URL already in metadata');
-              }
-            }
-          }
-          if (!metadata[provider].apis[service]) {
-            metadata[provider].apis[service] = {};
-          }
-          candidate.parent = metadata[provider].apis[service];
-          candidate.gp = metadata[provider];
           candidate.md.added = ng.now;
           candidate.md.updated = ng.now;
           candidate.md.history = [];
+          candidate.md.fixes = valOpt.patches;
           if (org.openapi) {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'openapi';
@@ -555,11 +581,13 @@ const commands = {
             o.info.version = '1.0.0';
           }
           metadata[provider].apis[service][o.info.version] = candidate.md;
+          candidate.version = o.info.version;
 
           const filepath = path.resolve('.','APIs',provider,service,o.info.version);
           await mkdirp(filepath);
           const filename = path.resolve(filepath,candidate.md.name);
           candidate.md.filename = path.relative('.',filename);
+          if (argv.cached) candidate.md.cached = argv.cached;
 
           o.info['x-providerName'] = provider;
           if (service) {
@@ -575,19 +603,16 @@ const commands = {
 
           o = deepmerge(o,candidate.gp.patch||{});
 
-          const patch = {};
+          const patch = ng.Tree(candidate.parent.patch); // logo might have been set with a favicon etc
           if (argv.categories) {
             const categories = argv.categories.split(',');
             o.info['x-apisguru-categories'] = categories;
-            if (!patch.info) patch.info = {};
             patch.info['x-apisguru-categories'] = categories;
           }
           if (argv.logo) {
-            if (!patch.info) patch.info = {};
             patch.info['x-logo'] = o.info['x-logo'];
           }
           if (argv.desclang) {
-            if (!patch.info) patch.info = {};
             patch.info['x-description-language'] = o.info['x-description-language'];
           }
 
@@ -599,6 +624,7 @@ const commands = {
           candidate.md.hash = ng.sha256(content);
           candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
+          newCandidates.push(candidate);
           ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
@@ -683,6 +709,8 @@ const commands = {
             candidate.md.updated = ng.now;
           }
           candidate.md.endpoints = countEndpoints(o);
+          candidate.md.fixes = valOpt.patches;
+          if (autoUpgrade) candidate.md.autoUpgrade = true;
         }
         else { // if not valid
           return false;
@@ -739,7 +767,7 @@ function rssFeed(data) {
   rss.channel["atom:link"]["@rel"] = 'self';
   rss.channel["atom:link"]["@href"] = rss.channel.link;
   rss.channel["atom:link"]["@type"] = 'application/rss+xml';
-  rss.channel.description = 'APIs.guru OpenAPI directory RSS feed';
+  rss.channel.description = rss.channel.title;
   rss.channel.webMaster = 'mike.ralphson@gmail.com (Mike Ralphson)';
   rss.channel.pubDate = ng.now.toUTCString();
   rss.channel.generator = 'openapi-directory https://github.com/apis-guru/openapi-directory';
@@ -797,7 +825,9 @@ function badges(metrics) {
     { label: 'OpenAPI Docs', name: 'openapi_specs.svg', prop: 'numSpecs', color: 'yellow' },
     { label: '🐝 Tested on', name: 'tested_on.svg', prop: 'numSpecs', color: 'green' },
     { label: '✗ Invalid at source', name: 'invalid.svg', prop: 'invalid', color: (metrics.invalid === 0 ? 'green' : 'red') },
-    { label: '🖧  Unreachable', name: 'unreachable.svg', prop: 'unreachable', color: (metrics.unreachable === 0 ? 'green' : 'red') }
+    { label: '🖧  Unreachable', name: 'unreachable.svg', prop: 'unreachable', color: (metrics.unreachable === 0 ? 'green' : 'red') },
+    { label: '🐒 Fixes', name: 'fixes.svg', prop: 'fixes', color: 'lime' },
+    { label: '🔧 Fixed %', name: 'fixed_pct.svg', prop: 'fixedPct', color: 'orange' }
   ];
   for (let badge of badges) {
      const format = { label: badge.label, message: metrics[badge.prop].toString(), color: badge.color };
@@ -822,12 +852,26 @@ const wrapUp = {
     let unreachable = 0;
     let invalid = 0;
     let unofficial = 0;
+    let fixed = 0;
+    let fixes = 0;
+    let compare = 0;
+    const datasets = [];
+    const providerCount = {};
     const list = {};
 
     ng.logger.log('API list...');
 
     for (let candidate of candidates) {
-      totalEndpoints += candidate.md.endpoints;
+      if (typeof candidate.md.endpoints === 'number') {
+        totalEndpoints += candidate.md.endpoints;
+      }
+      if (typeof candidate.md.fixes === 'number') {
+        if (candidate.md.fixes > 1) {
+          fixed++; // 1 is a special case for now, where we've forced a conversion
+          fixes += candidate.md.fixes;
+        }
+        compare++;
+      }
       if (candidate.md.valid === false) invalid++;
       if (candidate.md.unofficial) unofficial++;
       if (candidate.md.statusCode) {
@@ -837,20 +881,44 @@ const wrapUp = {
         }
       }
       let key = candidate.provider;
+
+      if (!providerCount[key]) providerCount[key] = 0;
+      providerCount[key]++;
+
       if (candidate.service) key += ':'+candidate.service;
       if (!list.key) list[key] = { added: candidate.md.added, preferred: candidate.version, versions: {} };
       list[key].versions[candidate.version] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
       if (candidate.preferred) list[key].preferred = candidate.version;
     }
+
+    let others = 0;
+    for (let provider in providerCount) {
+      if (providerCount[provider] < 10) {
+        others += providerCount[provider];
+        delete providerCount[provider];
+      }
+    }
+    providerCount.Others = others;
+    datasets.push({ title: 'providerCount', data: providerCount });
+
+    const ghRes = await fetch('https://api.github.com/repos/APIs-guru/openapi-directory', { cacheFolder: mainCache, refresh: 'force' });
+    const ghStats = await ghRes.json();
+
     const metrics = {
       numSpecs: candidates.length,
       numAPIs: Object.keys(list).length,
       numEndpoints: totalEndpoints,
       unreachable,
       invalid,
-      unofficial
+      unofficial,
+      fixes,
+      fixedPct: Math.round((fixed/compare)*100.0),
+      datasets,
+      stars: ghStats.stargazers_count,
+      issues: ghStats.open_issues_count
     };
     badges(metrics);
+
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
     const xml = rssFeed(list);
@@ -868,13 +936,10 @@ const wrapUp = {
     fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'),'utf8');
   },
   update: async function(candidates) {
-    const services = {};
+    const services = ng.Tree({});
     for (let candidate of candidates) {
       let key = candidate.provider;
       if (candidate.service) key += ':'+candidate.service;
-      if (!services[key]) {
-        services[key] = { versions: {} };
-      }
       services[key].versions[candidate.version] = candidate;
     }
     for (let key in services) {
@@ -986,6 +1051,7 @@ async function main(command, pathspec, options) {
   }
 
   if (wrapUp[command]) {
+    await wrapUp[command](newCandidates);
     await wrapUp[command](candidates);
   }
 

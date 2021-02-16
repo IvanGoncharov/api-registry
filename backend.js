@@ -27,9 +27,9 @@ const colour = process.env.NODE_DISABLE_COLORS ?
 const indexCache = path.resolve('.','metadata','index.cache');
 
 let metadata = {};
+let metadataConsistent = false;
 let apis = {};
 let leads = {};
-const failures = {};
 
 let logger = {
   prepend(s) {
@@ -46,6 +46,22 @@ let logger = {
   }
 };
 
+// based on https://hacks.mozilla.org/2015/07/es6-in-depth-proxies-and-reflect/
+function Tree(base = {}) {
+  return new Proxy(base, treeHandler);
+}
+
+const treeHandler = {
+  get: function (target, key, receiver) {
+    if (!(key in target) && key !== 'toJSON' && key !== Symbol.iterator) {
+      target[key] = Tree(); // auto-create a sub-Tree
+    }
+    return Reflect.get(target, key, receiver);
+  }
+};
+
+const failures = Tree();
+
 function exec(command) {
   logger.log(colour.yellow+command+colour.normal);
   return cp.execSync(command);
@@ -56,12 +72,6 @@ function sha256(s) {
 }
 
 function fail(candidate,status,err,context) {
-  if (!failures[candidate.provider]) {
-    failures[candidate.provider] = {};
-  }
-  if (!failures[candidate.provider][candidate.service]) {
-    failures[candidate.provider][candidate.service] = {};
-  }
   failures[candidate.provider][candidate.service][candidate.version] =
     { status, err:(err ? err.message : ''), context };
 }
@@ -142,6 +152,8 @@ const driverFuncs = {
     }
     return true;
   }
+  // TODO support GitHub action artifacts (download via API)
+  // https://docs.github.com/en/rest/reference/actions#artifacts
 };
 
 function registerDriver(drv) {
@@ -207,6 +219,7 @@ function loadMetadata() {
 }
 
 function saveMetadata(command) {
+  if (metadataConsistent) return true;
   logger.log('Saving metadata...');
   if (command === 'add') {
     metadata = sortobject(metadata);
@@ -234,9 +247,12 @@ function saveMetadata(command) {
     fs.writeFileSync(path.resolve('.','metadata',command+'_failures.yaml'),yaml.stringify(failures),'utf8');
   }
   catch (ex) {
-    logger.warn(colour.red+ex.message+colour.normal);
+    logger.warn(colour.red+ex.message+colour.normal,'writing failures');
+    console.error(ex);
   }
-  return (typeof metaStr === 'string');
+  const result = (typeof metaStr === 'string');
+  if (result) metadataConsistent = true;
+  return result;
 }
 
 async function gather(pathspec, command, argv) {
@@ -270,16 +286,6 @@ async function gather(pathspec, command, argv) {
 
 function populateMetadata(apis, pathspec, argv) {
 
-  for (let provider in metadata) {
-    for (let service in metadata[provider].apis) {
-      for (let version in metadata[provider].apis[service]) {
-        if (version !== 'patch') {
-          metadata[provider].apis[service][version].run = false;
-        }
-      }
-    }
-  }
-
   if (Object.keys(apis).length === 0) {
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
@@ -288,7 +294,7 @@ function populateMetadata(apis, pathspec, argv) {
             let md = metadata[provider].apis[service][version];
             if (md.filename && md.filename.startsWith(pathspec)) {
               if (!argv.small || Object.keys(metadata[provider].apis).length < 50) {
-                md.run = true;
+                md.run = now;
               }
             }
           }
@@ -314,17 +320,17 @@ function populateMetadata(apis, pathspec, argv) {
     const origin = clone(api.info['x-origin']) || [ {} ]; // clone so we don't affect API object itself
     const source = origin.pop();
     const history = origin; // what's left
-    const entry = { name, openapi, preferred, unofficial, filename, source, history, hash: api.hash, run: true, runDate: now };
+    const entry = { name, openapi, preferred, unofficial, filename, source, history, hash: api.hash, run: now };
 
-    if (!metadata[providerName]) metadata[providerName] = { driver: 'url', apis: {} };
+    if (!metadata[providerName]) metadata[providerName] = Tree({ driver: 'url', apis: {} });
     if (api.parentPatch && Object.keys(api.parentPatch).length) {
       metadata[providerName].patch = api.parentPatch;
     }
-    if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
+    //if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
     if (api.patch && Object.keys(api.patch).length) {
       metadata[providerName].apis[serviceName].patch = api.patch;
     }
-    if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
+    //if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
 
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
     if (!metadata[providerName].apis[serviceName][version].added) {
@@ -357,7 +363,7 @@ function getCandidates(argv) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         if (version !== 'patch') {
-          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run)) {
+          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run === now)) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);
@@ -396,6 +402,7 @@ function trimLeads(candidates) {
 }
 
 module.exports = {
+  Tree,
   colour,
   logger,
   sortJson,
