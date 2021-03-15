@@ -57,7 +57,7 @@ const newCandidates = [];
 
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
-const valOpt = { patch: true, repair: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const valOpt = { patch: true, repair: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, laxScopes: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
@@ -65,6 +65,16 @@ let argv = {};
 const template = function(templateString, templateVars) {
   // use this. for replaceable parameters
   return new Function("return `"+templateString +"`;").call(templateVars);
+}
+
+async function slack(text) {
+  if (process.env.SLACK_ALERT_URL) {
+    await fetch(process.env.SLACK_ALERT_URL, {
+      method: 'post',
+      body:    JSON.stringify({ text }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
 
 function getServer(o, u) {
@@ -107,12 +117,17 @@ function getProvider(u, source) {
 }
 
 async function getFavicon(candidate) {
-  const icon = await fetchFavicon('https://'+candidate.provider);
-  if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
-    ng.logger.log('📷',icon);
-    candidate.parent.patch = ng.Tree(candidate.parent.patch); // doesn't create Trees recursively from init
-    candidate.parent.patch.info = ng.Tree(candidate.parent.patch.info);
-    candidate.parent.patch.info['x-logo'].url = icon;
+  try {
+    const icon = await fetchFavicon('https://'+candidate.provider);
+    if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
+      ng.logger.log('📷',icon);
+      candidate.parent.patch = ng.Tree(candidate.parent.patch); // doesn't create Trees recursively from init
+      candidate.parent.patch.info = ng.Tree(candidate.parent.patch.info);
+      candidate.parent.patch.info['x-logo'].url = icon;
+    }
+  }
+  catch (ex) {
+    ng.logger.warn(ng.colour.red+'Fetch favicon',ex.message+ng.colour.normal);
   }
 }
 
@@ -701,6 +716,16 @@ const commands = {
           if (candidate.service) o.info['x-serviceName'] = candidate.service;
           if (typeof candidate.md.preferred === 'boolean') o.info['x-preferred'] = candidate.md.preferred;
           if (candidate.md.unofficial) o.info['x-unofficialSpec'] = true;
+          if (candidate.provider.indexOf('.local')>0) {
+            if (!o.swagger) {
+              if (!o.servers) o.servers = [];
+              const existing = o.servers.find(function(e,i,a){
+                return e.url.indexOf(candidate.provider)>=0;
+              });
+              if (!existing) o.servers.unshift({ url: 'http://'+candidate.provider });
+            }
+          }
+
           const content = yaml.stringify(ng.sortJson(o));
           fs.writeFileSync(candidate.md.filename,content,'utf8');
           const newHash = ng.sha256(content);
@@ -717,7 +742,10 @@ const commands = {
         }
       }
       else { // if not status 200 OK
-        candidate.md.statusCode = result.response.status;
+        if (result.response.status !== candidate.md.statusCode) {
+          candidate.md.statusCode = result.response.status;
+          slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped to status ${result.response.status}`);
+        }
         if (candidate.md.preferred === true) {
           // can't be preferred if no longer available
           // need to write this back even though update failed
@@ -1025,6 +1053,9 @@ async function main(command, pathspec, options) {
     for (let u in leads) {
       argv.service = leads[u].service;
       argv.cached = leads[u].file;
+      if (leads[u].provider) {
+        argv.host = metadata[leads[u].provider].host;
+      }
       await commands.add(u, metadata);
     }
   }

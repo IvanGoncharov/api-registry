@@ -81,6 +81,7 @@ function slowCommand(command) {
 }
 
 const driverFuncs = {
+  // TODO add provider to return objects
   nop: async function(provider,md) {
     // nop
     return true;
@@ -148,7 +149,7 @@ const driverFuncs = {
       // TODO way to extract service can differ between providers
       let service = path.basename(file,path.extname(file));
       service = service.split('-v')[0];
-      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',md.repo+'-'+md.branch,file), service };
+      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',md.repo+'-'+md.branch,file), service, provider };
     }
     return true;
   }
