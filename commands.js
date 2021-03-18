@@ -500,7 +500,7 @@ const commands = {
         const org = o;
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valid || argv.force) {
-          if ((valOpt.patches > 0) || candidate.md.autoUpgrade) {
+          if ((valOpt.patches > 0) || (valOpt.convWarn.length) || candidate.md.autoUpgrade) {
             o = valOpt.openapi;
           }
           let ou = getServer(o, u);
@@ -557,6 +557,9 @@ const commands = {
           candidate.md.updated = ng.now;
           candidate.md.history = [];
           candidate.md.fixes = valOpt.patches;
+          if (valOpt.convWarn && valOpt.convWarn.length) {
+            candidate.md.fixes += valOpt.convWarn.length;
+          }
           if (org.openapi) {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'openapi';
@@ -668,7 +671,7 @@ const commands = {
         if (valid) {
           // TODO if there is a logo.url try and fetch/cache it (if changed?)
 
-          if ((valOpt.patches > 0) || (candidate.md.autoUpgrade)) {
+          if ((valOpt.patches > 0) || (valOpt.convWarn.length) || (candidate.md.autoUpgrade)) {
             // passed validation as OAS 3 but only by patching the source
             // therefore the original OAS 2 document might not be valid as-is
             o = valOpt.openapi;
@@ -735,6 +738,9 @@ const commands = {
           }
           candidate.md.endpoints = countEndpoints(o);
           candidate.md.fixes = valOpt.patches;
+          if (valOpt.convWarn && valOpt.convWarn.length) {
+            candidate.md.fixes += valOpt.convWarn.length;
+          }
           if (autoUpgrade) candidate.md.autoUpgrade = true;
         }
         else { // if not valid
