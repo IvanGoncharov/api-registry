@@ -33,7 +33,7 @@ const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 
 const ng = require('./backend.js');
 
-yaml.defaultOptions = { prettyErrors: true };
+yaml.defaultOptions = { prettyErrors: true, lineWidth: 0 };
 
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
@@ -51,13 +51,11 @@ const mainCache = path.resolve('.','metadata','main.cache');
 
 const liquidEngine = new liquid.Engine();
 
-yaml.scalarOptions.str.fold.lineWidth = 0;
-
 const newCandidates = [];
 
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
-const valOpt = { patch: true, repair: true, warnOnly: true, anchors: true, laxurls: true, laxDefaults: true, laxScopes: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchors: true, laxurls: true, laxDefaults: true, laxScopes: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
@@ -189,7 +187,11 @@ async function validateObj(o,s,candidate,source) {
     ng.fail(candidate,null,ex,context);
   }
   ng.logger.log('',result.valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+  const oValid = candidate.md.valid;
   candidate.md.valid = result.valid;
+  if (oValid && !result.valid) {
+   slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped from valid to invalid`);
+  }
   return result.valid;
 }
 
@@ -729,7 +731,7 @@ const commands = {
             }
           }
 
-          const content = yaml.stringify(ng.sortJson(o));
+          const content = yaml.stringify(ng.sortJson(o),{lineWidth:0});
           fs.writeFileSync(candidate.md.filename,content,'utf8');
           const newHash = ng.sha256(content);
           if (candidate.md.hash !== newHash) {
@@ -744,6 +746,9 @@ const commands = {
           if (autoUpgrade) candidate.md.autoUpgrade = true;
         }
         else { // if not valid
+          if (argv.save) {
+            fs.writeFileSync('./temp.yaml',yaml.stringify(o),'utf8');
+          }
           return false;
         }
       }
