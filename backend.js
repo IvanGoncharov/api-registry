@@ -210,7 +210,12 @@ function sortJson(json) {
 }
 
 function clone(o) {
+  if (typeof o === 'undefined') return;
   return JSON.parse(JSON.stringify(o));
+}
+
+function cleanseVersion(v) {
+  return v.split('/').join('-').split('\\').join('-').split(':').join('');
 }
 
 function loadMetadata() {
