@@ -603,7 +603,7 @@ const commands = {
           metadata[provider].apis[service][o.info.version] = candidate.md;
           candidate.version = o.info.version;
 
-          const filepath = path.resolve('.','APIs',provider,service,o.info.version);
+          const filepath = path.resolve('.','APIs',provider,service,ng.cleanseVersion(o.info.version));
           await mkdirp(filepath);
           const filename = path.resolve(filepath,candidate.md.name);
           candidate.md.filename = path.relative('.',filename);
@@ -692,7 +692,7 @@ const commands = {
               delete candidate.parent[candidate.version];
             }
             const ofname = candidate.md.filename;
-            candidate.md.filename = candidate.md.filename.replace('/'+candidate.version+'/','/'+o.info.version+'/');
+            candidate.md.filename = candidate.md.filename.replace('/'+candidate.version+'/','/'+ng.cleanseVersion(o.info.version)+'/');
             if (o.openapi) {
               candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
               candidate.md.name = 'openapi.yaml';
