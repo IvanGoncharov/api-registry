@@ -36,6 +36,7 @@
     "remove-markdown": "^0.3.0",
     "semver": "^7.3.2",
     "swagger2openapi": "^7.0.3",
+    "tar": "^6.1.0",
     "tiny-opts-parser": "0.0.3",
     "urijs": "^1.19.5",
     "uuid": "^8.3.2",
