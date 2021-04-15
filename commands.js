@@ -199,7 +199,7 @@ async function fix(candidate, o) {
   // TODO use jmespath queries to fix up stuff
 }
 
-async function retrieve(u, cached) {
+async function retrieve(u, cached, slow) {
   let response = { status: 599, ok: false };
   let s;
   let ok;
@@ -210,7 +210,8 @@ async function retrieve(u, cached) {
 
   if (u.startsWith('http')) {
     ng.logger.prepend('F');
-    response = await fetch(u, {logToConsole: argv.verbose, timeout:5000, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
+    const timeout = slow ? 15000 : 5000;
+    response = await fetch(u, {logToConsole: argv.verbose, timeout, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
     if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
       ok = true;
     }
@@ -495,7 +496,7 @@ const commands = {
   add: async function(u, metadata) {
     ng.logger.prepend(u+' ');
     try {
-      const result = await retrieve(u, argv.cached);
+      const result = await retrieve(u, argv.cached, true);
       if (result.response.ok) {
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
