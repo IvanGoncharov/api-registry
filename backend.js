@@ -16,6 +16,7 @@ const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
 const yaml = require('yaml');
+const tar = require('tar');
 
 yaml.defaultOptions = { prettyErrors: true };
 
@@ -139,17 +140,18 @@ const driverFuncs = {
   github: async function(provider,md) {
     logger.log('  ',md.org,md.repo,md.branch,md.glob);
     await mkdirp(`./metadata/${provider}.cache`);
-    // TODO use fetch and a nodejs tar implementation
     // TODO allow for authentication
     const codeloadUrl = `https://codeload.github.com/${md.org}/${md.repo}/tar.gz/${md.branch}`;
-    exec(`wget -O- ${codeloadUrl} | tar -C ./metadata/${provider}.cache --wildcards ${md.repo}-${md.branch}/${md.glob} -xz`);
-    const fileArr = await rf(`./metadata/${provider}.cache/${md.repo}-${md.branch}`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
+    const res = await fetch(codeloadUrl);
+    const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
+    res.body.pipe(tarx);
+    const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
     for (let file of fileArr) {
       const fileUrl = `https://raw.githubusercontent.com/${md.org}/${md.repo}/${md.branch}/${file}`;
       // TODO way to extract service can differ between providers
       let service = path.basename(file,path.extname(file));
       service = service.split('-v')[0];
-      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',md.repo+'-'+md.branch,file), service, provider };
+      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
     }
     return true;
   }
@@ -413,6 +415,7 @@ module.exports = {
   logger,
   sortJson,
   clone,
+  cleanseVersion,
   exec,
   sha256,
   fail,
