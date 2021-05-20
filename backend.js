@@ -119,7 +119,9 @@ const driverFuncs = {
       urls[u] = new URL(urls[u][0], md.masterUrl).toString();
     }
     for (let i=0;i<services.length;i++) {
-      leads[urls[i]] = { service: services[i][0] };
+      let serv = services[i];
+      if (Array.isArray(serv)) serv = serv[0];
+      leads[urls[i]] = { service: serv.toLowerCase() };
     }
     return true;
   },
