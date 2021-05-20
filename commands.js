@@ -624,13 +624,13 @@ const commands = {
 
           o = deepmerge(o,candidate.gp.patch||{});
 
-          const patch = ng.Tree(candidate.parent.patch); // logo might have been set with a favicon etc
+          const patch = ng.Tree(candidate.parent.patch);
           if (argv.categories) {
             const categories = argv.categories.split(',');
             o.info['x-apisguru-categories'] = categories;
             patch.info['x-apisguru-categories'] = categories;
           }
-          if (argv.logo) {
+          if (o.info['x-logo']) {
             patch.info['x-logo'] = o.info['x-logo'];
           }
           if (argv.desclang) {
@@ -1064,7 +1064,7 @@ async function main(command, pathspec, options) {
   if ((command === 'update') && (Object.keys(leads).length)) {
     for (let u in leads) {
       argv.service = leads[u].service;
-      argv.cached = leads[u].file;
+      argv.cached = path.relative('./APIs/',leads[u].file);
       if (leads[u].provider) {
         argv.host = metadata[leads[u].provider].host;
       }
