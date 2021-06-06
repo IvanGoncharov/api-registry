@@ -26,6 +26,7 @@ const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\x1b[1M' };
 const indexCache = path.resolve('.','metadata','index.cache');
+const archiveCache = path.resolve('.','metadata','archive.cache');
 
 let metadata = {};
 let metadataConsistent = false;
@@ -144,7 +145,7 @@ const driverFuncs = {
     await mkdirp(`./metadata/${provider}.cache`);
     // TODO allow for authentication
     const codeloadUrl = `https://codeload.github.com/${md.org}/${md.repo}/tar.gz/${md.branch}`;
-    const res = await fetch(codeloadUrl);
+    const res = await fetch(codeloadUrl, { cacheFolder: archiveCache });
     const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
     res.body.pipe(tarx);
     const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });

@@ -59,6 +59,7 @@ const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchor
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
+let updateCount = 0;
 
 const template = function(templateString, templateVars) {
   // use this. for replaceable parameters
@@ -71,6 +72,7 @@ async function slack(text) {
       method: 'post',
       body:    JSON.stringify({ text }),
       headers: { 'Content-Type': 'application/json' },
+      cacheFolder: path.resolve('.',metadata,'webhook.cache')
     });
   }
 }
@@ -89,6 +91,10 @@ function getServer(o, u) {
       o.servers.unshift({ url: url });
     }
     assert.ok(o.servers[0],'Must have determined servers by now');
+    let ok = true;
+    if (o.servers[0].url.indexOf('localhost')>=0) ok = false;
+    if (o.servers[0].url.indexOf('githubusercontent')>=0) ok = false;
+    assert.ok(ok,'Server must not be in blocklist');
     ou = o.servers[0].url;
   }
   if (o.host) {
@@ -662,6 +668,12 @@ const commands = {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
+
+    updateCount++;
+    if (global.gc && updateCount % 100 === 0) {
+      global.gc();
+    }
+
     try {
       const result = await retrieve(u, candidate.md.cached);
       let o = {};
@@ -1064,7 +1076,9 @@ async function main(command, pathspec, options) {
   if ((command === 'update') && (Object.keys(leads).length)) {
     for (let u in leads) {
       argv.service = leads[u].service;
-      argv.cached = path.relative('./APIs/',leads[u].file);
+      if (leads[u].file) {
+        argv.cached = path.relative('./APIs/',leads[u].file);
+      }
       if (leads[u].provider) {
         argv.host = metadata[leads[u].provider].host;
       }
