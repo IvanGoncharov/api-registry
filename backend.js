@@ -17,6 +17,7 @@ const rf = require('node-readfiles');
 const sortobject = require('deep-sort-object');
 const yaml = require('yaml');
 const tar = require('tar');
+const puppeteer = require('puppeteer');
 
 yaml.defaultOptions = { prettyErrors: true };
 
@@ -24,7 +25,7 @@ const now = new Date();
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
-    { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\x1b[1M' };
+    { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\r\x1b[1M' };
 const indexCache = path.resolve('.','metadata','index.cache');
 const archiveCache = path.resolve('.','metadata','archive.cache');
 
@@ -32,6 +33,7 @@ let metadata = {};
 let metadataConsistent = false;
 let apis = {};
 let leads = {};
+let browser;
 
 let logger = {
   prepend(s) {
@@ -55,7 +57,7 @@ function Tree(base = {}) {
 
 const treeHandler = {
   get: function (target, key, receiver) {
-    if (!(key in target) && key !== 'toJSON' && key !== Symbol.iterator) {
+    if (!(key in target) && key !== 'toJSON' && key !== '$$typeof' && key !== Symbol.iterator) {
       target[key] = Tree(); // auto-create a sub-Tree
     }
     return Reflect.get(target, key, receiver);
@@ -97,8 +99,8 @@ const driverFuncs = {
     return true;
   },
   apisjson: async function(provider,md) {
-    logger.log('  ',md.masterUrl);
-    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
+    logger.log('  ',md.mainUrl);
+    const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const apisjson = await res.json();
     for (let api of apisjson.apis) {
       for (let property of api.properties) {
@@ -110,14 +112,52 @@ const driverFuncs = {
     }
     return true;
   },
+  blob: async function(provider,md) {
+    if (!browser) browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.goto(md.mainUrl, { waitUntil: 'networkidle0' });
+
+    await page.waitForSelector('a[download]', {
+      visible: true,
+    });
+
+    const elementHandles = await page.$$('a[download]');
+    await Promise.all(
+      elementHandles.map(handle => handle.click())
+    );
+    const propertyJsHandles = await Promise.all(
+      elementHandles.map(handle => handle.getProperty('href'))
+    );
+    const hrefs = await Promise.all(
+      propertyJsHandles.map(handle => handle.jsonValue())
+    );
+
+    let result;
+    for (let href of hrefs) {
+      console.log('blob driver',href);
+      if (href.startsWith('blob:')) {
+        await page.goto(href, { waitUntil: 'networkidle2' });
+        result = { url:href, text: async function() { return await page.content(); } };
+      }
+    }
+
+    if (result && result.text) {
+      let text = await result.text();
+      if (text.indexOf('<pre')>=0) {
+        text = '{'+(text.split('>{')[1].split('</pre>')[0]);
+      }
+      md.data = text;
+    }
+    return true;
+  },
   catalog: async function(provider,md) {
-    logger.log('  ',md.masterUrl);
-    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
+    logger.log('  ',md.mainUrl);
+    const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const catalog = await res.json();
     const services = jmespath(catalog, md.serviceQuery);
     const urls = jmespath(catalog, md.urlQuery);
     for (let u in urls) {
-      urls[u] = new URL(urls[u][0], md.masterUrl).toString();
+      urls[u] = new URL(urls[u][0], md.mainUrl).toString();
     }
     for (let i=0;i<services.length;i++) {
       let serv = services[i];
@@ -127,13 +167,13 @@ const driverFuncs = {
     return true;
   },
   html: async function(provider,md) {
-    logger.log('  ',md.masterUrl);
+    logger.log('  ',md.mainUrl);
     // TODO use a cheerio DOM selector and an optional regex for replacement
     return true;
   },
   google: async function(provider,md) {
-    logger.log('  ',md.masterUrl);
-    const res = await fetch(md.masterUrl, { cacheFolder: indexCache });
+    logger.log('  ',md.mainUrl);
+    const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const discovery = await res.json();
     for (let item of discovery.items) {
       leads[item.discoveryRestUrl] = { service: item.name };
@@ -263,6 +303,10 @@ function saveMetadata(command) {
   }
   const result = (typeof metaStr === 'string');
   if (result) metadataConsistent = true;
+  if (browser) {
+    browser.close();
+    browser = null;
+  }
   return result;
 }
 
