@@ -10,6 +10,7 @@ const https = require('https');
 const path = require('path');
 const url = require('url');
 const util = require('util');
+const v8 = require('v8');
 
 const deepmerge = require('deepmerge');
 const fetch = require('fetch-filecache-for-crawling');
@@ -72,9 +73,17 @@ async function slack(text) {
       method: 'post',
       body:    JSON.stringify({ text }),
       headers: { 'Content-Type': 'application/json' },
-      cacheFolder: path.resolve('.',metadata,'webhook.cache')
+      cacheFolder: path.resolve('.','metadata','webhook.cache')
     });
   }
+}
+
+function saveHeapSnapshot() {
+  const snapshotStream = v8.getHeapSnapshot();
+  // filename must end with `.heapsnapshot`, otherwise Chrome DevTools won't open it.
+  const fileName = `./${Date.now()}.heapsnapshot`;
+  const fileStream = fs.createWriteStream(fileName);
+  snapshotStream.pipe(fileStream);
 }
 
 function getServer(o, u) {
@@ -196,7 +205,7 @@ async function validateObj(o,s,candidate,source) {
   const oValid = candidate.md.valid;
   candidate.md.valid = result.valid;
   if (oValid && !result.valid) {
-   slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped from valid to invalid`);
+    slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped from valid to invalid`);
   }
   return result.valid;
 }
@@ -670,12 +679,21 @@ const commands = {
     if (candidate.driver === 'external') return true;
 
     updateCount++;
-    if (global.gc && updateCount % 100 === 0) {
-      global.gc();
+    if (updateCount % 100 === 0) {
+      if (global.gc) global.gc();
+      saveHeapSnapshot();
     }
 
     try {
-      const result = await retrieve(u, candidate.md.cached);
+      let result;
+      if (candidate.gp.data) {
+        result = { response: { ok: true, status: 200 }, text: candidate.gp.data };
+        delete candidate.gp.data;
+      }
+      else {
+        result = await retrieve(u, candidate.md.cached);
+      }
+
       let o = {};
       let autoUpgrade = false;
       if (result && result.response.ok) {
