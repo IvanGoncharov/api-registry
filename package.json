@@ -33,6 +33,7 @@
     "oas-validator": "^5.0.3",
     "parse-domain": "^3.0.3",
     "postman2openapi": "^1.0.0-beta",
+    "puppeteer": "^10.0.0",
     "remove-markdown": "^0.3.0",
     "semver": "^7.3.2",
     "swagger2openapi": "^7.0.3",
