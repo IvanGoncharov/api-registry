@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "@astridhq/fetch-favicon": "0.0.4-rc.3",
+    "adm-zip": "^0.5.5",
     "apib2swagger": "^1.12.0",
     "badge-maker": "^3.3.0",
     "deep-sort-object": "^1.0.2",

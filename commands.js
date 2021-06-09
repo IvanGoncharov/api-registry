@@ -417,6 +417,7 @@ const commands = {
   deploy: async function(candidate) {
     if (argv.dashboard) {
       ng.logger.log();
+      candidate.info = { title: 'API', 'x-origin': [ { url: candidate.md.source } ] };
       return candidate;
     }
     let s = fs.readFileSync(candidate.md.filename,'utf8');
@@ -687,8 +688,16 @@ const commands = {
     try {
       let result;
       if (candidate.gp.data) {
-        result = { response: { ok: true, status: 200 }, text: candidate.gp.data };
-        delete candidate.gp.data;
+        const dataItem = candidate.gp.data.find(function(e,i,a){
+          return (e.url === u);
+        });
+        if (dataItem) {
+          result = { response: { ok: true, status: 200 }, text: dataItem.text };
+        }
+        else {
+          ng.logger.warn(ng.colour.red,`Could not find ${u} in retrieved data`,ng.colour.normal);
+          result = { response: { ok: false, status: 404 } };
+        }
       }
       else {
         result = await retrieve(u, candidate.md.cached);
@@ -820,13 +829,13 @@ const commands = {
   }
 };
 
-function rssFeed(data) {
+function rssFeed(data,updated) {
   let feed = {};
   let rss = {};
 
   let d = ng.now;
 
-  ng.logger.log('RSS Feed...');
+  ng.logger.log('RSS Feed...',updated,Object.keys(data).length);
 
   rss['@version'] = '2.0';
   rss["@xmlns:atom"] = 'http://www.w3.org/2005/Atom';
@@ -844,18 +853,17 @@ function rssFeed(data) {
   rss.channel.item = [];
 
   for (let api in data) {
-
       let p = data[api].versions[data[api].preferred];
       if (p && p.info) {
         let i = {};
-        i.title = p.info.title;
+        i.title = `${api} ${data[api].preferred} ${p.info.title}`;
         i.link = p.info["x-origin"][0].url;
         i.description = removeMarkdown(p.info.description ? p.info.description.trim().split('\n')[0] : p.info.title);
         i.category = 'APIs';
         i.guid = {};
         i.guid["@isPermaLink"] = 'false';
         i.guid[""] = api;
-        i.pubDate = new Date(p.updated).toUTCString();
+        i.pubDate = new Date(updated ? p.updated : p.added).toUTCString();
 
         if (p.info["x-logo"]) {
           i.enclosure = {};
@@ -991,8 +999,8 @@ const wrapUp = {
 
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
-    const xml = rssFeed(list);
-    fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),xml,'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),rssFeed(list,true),'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','v2','added.rss'),rssFeed(list,false),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','.nojekyll'),'','utf8');
     try {
       const indexHtml = fs.readFileSync(path.resolve('.','metadata','index.html'),'utf8');
@@ -1126,7 +1134,7 @@ async function main(command, pathspec, options) {
   }
 
   if (wrapUp[command]) {
-    await wrapUp[command](newCandidates);
+    if (newCandidates.length) await wrapUp[command](newCandidates);
     await wrapUp[command](candidates);
   }
 
