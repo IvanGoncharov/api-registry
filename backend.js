@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const streamPipeline = util.promisify(require('stream').pipeline);
 
 const fetch = require('fetch-filecache-for-crawling');
 const jmespath = require('jmespath').search;
@@ -18,6 +19,7 @@ const sortobject = require('deep-sort-object');
 const yaml = require('yaml');
 const tar = require('tar');
 const puppeteer = require('puppeteer');
+const zip = require('adm-zip');
 
 yaml.defaultOptions = { prettyErrors: true };
 
@@ -26,6 +28,8 @@ const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\r\x1b[1M' };
+
+// cacheFolder constants
 const indexCache = path.resolve('.','metadata','index.cache');
 const archiveCache = path.resolve('.','metadata','archive.cache');
 
@@ -133,20 +137,19 @@ const driverFuncs = {
     );
 
     let result;
+    md.data = [];
     for (let href of hrefs) {
-      console.log('blob driver',href);
       if (href.startsWith('blob:')) {
         await page.goto(href, { waitUntil: 'networkidle2' });
-        result = { url:href, text: async function() { return await page.content(); } };
+        let text = await page.content();
+        if (text.indexOf('<pre')>=0) {
+          text = '{'+(text.split('>{')[1].split('</pre>')[0]);
+        }
+        const components = href.split('/');
+        components.pop(); // remove last identifier section of url
+        components.push('blobId');
+        md.data.push({ url: components.join('/'), text });
       }
-    }
-
-    if (result && result.text) {
-      let text = await result.text();
-      if (text.indexOf('<pre')>=0) {
-        text = '{'+(text.split('>{')[1].split('</pre>')[0]);
-      }
-      md.data = text;
     }
     return true;
   },
@@ -181,6 +184,8 @@ const driverFuncs = {
     return true;
   },
   github: async function(provider,md) {
+    // TODO support GitHub action artifacts (download via API)
+    // https://docs.github.com/en/rest/reference/actions#artifacts
     logger.log('  ',md.org,md.repo,md.branch,md.glob);
     await mkdirp(`./metadata/${provider}.cache`);
     // TODO allow for authentication
@@ -197,9 +202,32 @@ const driverFuncs = {
       leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
     }
     return true;
+  },
+  zip: async function(provider,md) {
+    md.data = [];
+    for (let u of md.mainUrl) {
+      logger.log(colour.green,u);
+      const res = await fetch(u, { cacheFolder: archiveCache });
+      if (!res.ok) {
+        logger.warn(colour.red,res.statusText,colour.normal);
+      }
+      else {
+        const zipFileName = path.resolve(archiveCache,`${provider}.zip`);
+        await streamPipeline(res.body, fs.createWriteStream(zipFileName));
+        const zipFile = new zip(zipFileName);
+	    zipFile.getEntries().forEach(function(zipEntry) {
+           if (zipEntry.name.endsWith('.json')) {
+             const temp = zipEntry.getData().toString('utf8');
+             if (typeof temp === 'string' && temp.startsWith('{')) {
+               logger.log(colour.yellow,zipEntry.entryName,colour.normal);
+               md.data.push({ url: zipEntry.entryName, text: temp });
+             }
+           }
+        });
+	  }
+	}
+    return true;
   }
-  // TODO support GitHub action artifacts (download via API)
-  // https://docs.github.com/en/rest/reference/actions#artifacts
 };
 
 function registerDriver(drv) {
