@@ -124,7 +124,7 @@ function getProvider(u, source) {
   }
   if (typeof domain === 'string') domain = domain.replace('api.','');
   if (topLevelDomains && topLevelDomains[0] === 'googleapis') {
-    return 'googleapis.com'; // FIXME hard-coded
+    return 'googleapis.com'; // FIXME hard-coded to fit in with previous script behaviour
   }
   return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
 }
@@ -214,13 +214,27 @@ async function fix(candidate, o) {
   // TODO use jmespath queries to fix up stuff
 }
 
-async function retrieve(u, cached, slow) {
+async function retrieve(u, argv, slow) {
   let response = { status: 599, ok: false };
   let s;
   let ok;
 
-  if (cached) {
-    u = url.pathToFileURL(cached).toString();
+  if (argv.cached) {
+    u = url.pathToFileURL(argv.cached).toString();
+  }
+
+  if (argv.provider && argv.provider.data) {
+    ng.logger.prepend('S');
+    const dataItem = argv.provider.data.find(function(e,i,a){
+      return (e.url === u);
+    });
+    if (dataItem) {
+      return { response: { ok: true, status: 200 }, text: dataItem.text };
+    }
+    else {
+      ng.logger.warn(ng.colour.red,`Could not find ${u} in retrieved data`,ng.colour.normal);
+      return { response: { ok: false, status: 404 } };
+    }
   }
 
   if (u.startsWith('http')) {
@@ -512,7 +526,7 @@ const commands = {
   add: async function(u, metadata) {
     ng.logger.prepend(u+' ');
     try {
-      const result = await retrieve(u, argv.cached, true);
+      const result = await retrieve(u, argv, true);
       if (result.response.ok) {
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
@@ -554,17 +568,21 @@ const commands = {
             o.info['x-logo'].url = argv.logo;
           }
 
+          let gotLogo = false;
           if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
             let colour = ng.colour.red;
             try {
+              // check the logo URL and populate the logoCache
               const res = await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
-              // TODO check status and media-type = 'image/*'
-              colour = ng.colour.green;
+              if (res.ok && res.headers.contentType.indexOf('image/')>=0) {
+                gotLogo = true;
+                colour = ng.colour.green;
+              }
             }
             catch (ex) {}
             ng.logger.prepend(colour+'📷 '+ng.colour.normal);
           }
-          else if (provider.indexOf('.local') < 0) {
+          if (!gotLogo && provider.indexOf('.local') < 0) {
             await getFavicon(candidate);
           }
 
@@ -686,22 +704,7 @@ const commands = {
     }
 
     try {
-      let result;
-      if (candidate.gp.data) {
-        const dataItem = candidate.gp.data.find(function(e,i,a){
-          return (e.url === u);
-        });
-        if (dataItem) {
-          result = { response: { ok: true, status: 200 }, text: dataItem.text };
-        }
-        else {
-          ng.logger.warn(ng.colour.red,`Could not find ${u} in retrieved data`,ng.colour.normal);
-          result = { response: { ok: false, status: 404 } };
-        }
-      }
-      else {
-        result = await retrieve(u, candidate.md.cached);
-      }
+      const result = await retrieve(u, { cached: candidate.md.cached, provider: candidate.gp });
 
       let o = {};
       let autoUpgrade = false;
@@ -752,6 +755,7 @@ const commands = {
           o = deepmerge(o,candidate.parent.patch||{});
 
           if (o.info['x-apisguru-categories']) {
+            // deduplicate categories array
             o.info['x-apisguru-categories'] = Array.from(new Set(o.info['x-apisguru-categories']));
           }
           o.info['x-providerName'] = candidate.provider;
@@ -926,6 +930,9 @@ const startUp = {
 
 const wrapUp = {
   deploy: async function(candidates) {
+
+    const weekAgo = new Date(new Date().setDate(new Date().getDate()-7));
+
     let totalEndpoints = 0;
     let unreachable = 0;
     let invalid = 0;
@@ -933,6 +940,9 @@ const wrapUp = {
     let fixed = 0;
     let fixes = 0;
     let compare = 0;
+    let added = 0;
+    let updated = 0;
+
     const datasets = [];
     const providerCount = {};
     const list = {};
@@ -952,6 +962,8 @@ const wrapUp = {
       }
       if (candidate.md.valid === false) invalid++;
       if (candidate.md.unofficial) unofficial++;
+      if (new Date(candidate.md.added) >= weekAgo) added++;
+      if (new Date(candidate.md.updated) >= weekAgo) updated++;
       if (candidate.md.statusCode) {
         const range = candidate.md.statusCode.toString().substr(0,1);
         if ((range === '4') || (range === '5')) {
@@ -993,7 +1005,8 @@ const wrapUp = {
       fixedPct: Math.round((fixed/compare)*100.0),
       datasets,
       stars: ghStats.stargazers_count,
-      issues: ghStats.open_issues_count
+      issues: ghStats.open_issues_count,
+      thisWeek: { added, updated }
     };
     badges(metrics);
 
@@ -1103,10 +1116,12 @@ async function main(command, pathspec, options) {
     for (let u in leads) {
       argv.service = leads[u].service;
       if (leads[u].file) {
-        argv.cached = path.relative('./APIs/',leads[u].file);
+        //argv.cached = path.relative('./APIs/',leads[u].file);
+        argv.cached = path.relative('.',leads[u].file);
       }
       if (leads[u].provider) {
         argv.host = metadata[leads[u].provider].host;
+        argv.provider = metadata[leads[u].provider];
       }
       await commands.add(u, metadata);
     }
