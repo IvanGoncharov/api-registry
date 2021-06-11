@@ -2,7 +2,7 @@
 
 'use strict';
 
-// TODO logging ws support for API?
+// TODO logging websocket support for API mode?
 
 const cp = require('child_process');
 const crypto = require('crypto');
@@ -89,7 +89,6 @@ function slowCommand(command) {
 }
 
 const driverFuncs = {
-  // TODO add provider to return objects
   nop: async function(provider,md) {
     // nop
     return true;
@@ -154,18 +153,27 @@ const driverFuncs = {
     return true;
   },
   catalog: async function(provider,md) {
+    md.data = [];
     logger.log('  ',md.mainUrl);
     const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const catalog = await res.json();
     const services = jmespath(catalog, md.serviceQuery);
     const urls = jmespath(catalog, md.urlQuery);
+    let dataItems = [];
+    if (md.dataQuery) {
+      dataItems = jmespath(catalog, md.dataQuery);
+    }
     for (let u in urls) {
-      urls[u] = new URL(urls[u][0], md.mainUrl).toString();
+      if (Array.isArray(urls[u])) urls[u] = urls[u][0];
+      urls[u] = new URL(urls[u], md.mainUrl).toString();
     }
     for (let i=0;i<services.length;i++) {
       let serv = services[i];
       if (Array.isArray(serv)) serv = serv[0];
-      leads[urls[i]] = { service: serv.toLowerCase() };
+      leads[urls[i]] = { service: serv.toLowerCase(), provider };
+      if (dataItems[i]) {
+        md.data.push({ url: urls[i], text: JSON.stringify(dataItems[i]) });
+      }
     }
     return true;
   },
@@ -199,7 +207,9 @@ const driverFuncs = {
       // TODO way to extract service can differ between providers
       let service = path.basename(file,path.extname(file));
       service = service.split('-v')[0];
-      leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
+      if (file.indexOf('deref')<0) { // FIXME hardcoded
+        leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
+      }
     }
     return true;
   },
@@ -350,18 +360,6 @@ async function gather(pathspec, command, argv) {
         apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
       }
       const fdir = path.dirname(filename);
-      if (argv.patch) { // TODO can be removed when separate patch files removed
-        let patchfile = path.join(fdir,'..','patch.yaml');
-        if (fs.existsSync(patchfile)) {
-          const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
-          if (Object.keys(patch).length) apis[filename].parentPatch = patch;
-        }
-        patchfile = path.join(fdir,'..','..','patch.yaml');
-        if (fs.existsSync(patchfile)) {
-          const patch = yaml.parse(fs.readFileSync(patchfile,'utf8'));
-          if (Object.keys(patch).length) apis[filename].patch = patch;
-        }
-      }
     }
   });
   return apis;
@@ -419,7 +417,7 @@ function populateMetadata(apis, pathspec, argv) {
     if (!metadata[providerName].apis[serviceName][version].added) {
       metadata[providerName].apis[serviceName][version].added = now;
     }
-    delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME
+    delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME (removing patches at version level)
   }
   return metadata;
 }
