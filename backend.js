@@ -338,6 +338,7 @@ function saveMetadata(command) {
   catch (ex) {
     logger.warn(colour.red+ex.message+colour.normal,'writing failures');
     console.error(ex);
+    process.exitCode = 3;
   }
   const result = (typeof metaStr === 'string');
   if (result) metadataConsistent = true;
@@ -422,11 +423,12 @@ function populateMetadata(apis, pathspec, argv) {
   return metadata;
 }
 
-async function runDrivers(selectedDriver) {
+async function runDrivers(argv) {
+  if (argv.skipDrivers) return {};
   for (let driver of drivers.keys()) {
     const providers = drivers.get(driver);
     for (let provider of providers.keys()) {
-      if (!selectedDriver || driver === selectedDriver) {
+      if (!argv.rriver || driver === argv.driver) {
         logger.log('Running driver',driver,'for',provider);
         await driverFuncs[driver](provider,providers.get(provider));
       }
