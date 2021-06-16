@@ -405,8 +405,8 @@ const commands = {
       ng.logger.log(ng.colour.green+'e:'+candidate.md.endpoints,ng.colour.normal);
     }
     catch (ex) {
-      ng.logger.log(ng.colour.red+ex.message,ng.colour.normal);
       ng.fail(candidate,null,ex,'endpoints');
+      ng.logger.log(ng.colour.red+ex.message,ng.colour.normal);
     }
   },
   cache: async function(candidate) {
@@ -489,13 +489,13 @@ const commands = {
     try {
       const s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
-      const valid = await validateObj(o,s,candidate,candidate.md.filename);
+      const valid = await validateObj(o,s,candidate,candidate.md.filename); // can call ng.fail()
       if (!valid) process.exitCode = 1;
       return valid;
     }
     catch (ex) {
+      ng.fail(candidate,null,ex,'validate');
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
-      process.exitCode = 2;
     }
   },
   ci: async function(candidate) {

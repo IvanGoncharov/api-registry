@@ -82,6 +82,7 @@ function sha256(s) {
 function fail(candidate,status,err,context) {
   failures[candidate.provider][candidate.service][candidate.version] =
     { status, err:(err ? err.message : ''), context };
+  process.exitCode = 1;
 }
 
 function slowCommand(command) {
