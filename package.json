@@ -1,7 +1,10 @@
 {
-  "name": "api-registry",
+  "name": "@Mermade/api-registry",
   "version": "1.0.0",
   "description": "Own-label API registry",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "main": "index.js",
   "scripts": {
     "lint": "npx eslint *.js",
