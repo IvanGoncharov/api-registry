@@ -29,7 +29,7 @@
     "google-discovery-to-swagger": "git://github.com/apis-guru/google-discovery-to-swagger.git#openapi3",
     "jgexml": "^0.4.4",
     "jmespath": "^0.15.0",
-    "js-yaml": "^4.0.0",
+    "js-yaml": "^4.1.0",
     "liquid": "^5.1.0",
     "mkdirp": "^1.0.4",
     "node-readfiles": "^0.2.0",
@@ -45,7 +45,7 @@
     "tiny-opts-parser": "0.0.3",
     "urijs": "^1.19.5",
     "uuid": "^8.3.2",
-    "yaml": "^2.0.0-4"
+    "yaml": "^2.0.0-6"
   },
   "devDependencies": {},
   "repository": {
