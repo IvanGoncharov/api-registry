@@ -1124,7 +1124,7 @@ async function main(command, pathspec, options) {
     }
     ng.populateMetadata(apis, pathspec, argv);
   }
-  const candidates = ng.getCandidates(argv);
+  let candidates = ng.getCandidates(argv);
   ng.logger.log(candidates.length,'candidates found');
   await ng.runDrivers(argv);
 
