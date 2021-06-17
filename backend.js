@@ -81,7 +81,7 @@ function sha256(s) {
 
 function fail(candidate,status,err,context) {
   failures[candidate.provider][candidate.service][candidate.version] =
-    { status, err:(err ? err.message : ''), context };
+    { status, error:(err ? err.message : ''), context };
   process.exitCode = 1;
 }
 
@@ -314,6 +314,9 @@ function saveMetadata(command) {
   if (command === 'add') {
     metadata = sortobject(metadata);
   }
+  for (let provider in metadata) {
+    delete metadata[provider].data;
+  }
   let metaStr;
   try {
     metaStr = yaml.stringify(metadata,{prettyErrors:true});
@@ -377,7 +380,7 @@ function populateMetadata(apis, pathspec, argv) {
             let md = metadata[provider].apis[service][version];
             if (md.filename && md.filename.startsWith(pathspec)) {
               if (!argv.small || Object.keys(metadata[provider].apis).length < 50) {
-                md.run = now;
+                md.run = now.toISOString();
               }
             }
           }
@@ -420,6 +423,7 @@ function populateMetadata(apis, pathspec, argv) {
       metadata[providerName].apis[serviceName][version].added = now;
     }
     delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME (removing patches at version level)
+    delete metadata[providerName].data; // cleanse previous stored data
   }
   return metadata;
 }
@@ -447,7 +451,7 @@ function getCandidates(argv) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         if (version !== 'patch') {
-          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run === now)) {
+          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run === now.toISOString())) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);

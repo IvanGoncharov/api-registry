@@ -56,7 +56,7 @@ const newCandidates = [];
 
 let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
-const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchors: true, laxurls: true, laxDefaults: true, laxScopes: true, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchors: true, laxurls: true, laxDefaults: true, laxScopes: false, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
@@ -163,7 +163,7 @@ async function validateObj(o,s,candidate,source) {
       valOpt.patches = 1; // force taking from valOpt.openapi
     }
     else { // $ref doesn't mean a JSON Reference in google discovery land
-      if (!argv.stub) {
+      if (!argv.stub && resOpt.resolve) {
         ng.logger.prepend('R');
         await resolver.resolve(o,source,resOpt);
         o = resOpt.openapi;
@@ -223,7 +223,7 @@ async function retrieve(u, argv, slow) {
     u = url.pathToFileURL(argv.cached).toString();
   }
 
-  if (argv.provider && argv.provider.data) {
+  if (argv.provider && argv.provider.data && argv.provider.data.length) {
     ng.logger.prepend('S');
     const dataItem = argv.provider.data.find(function(e,i,a){
       return (e.url === u);
@@ -232,7 +232,7 @@ async function retrieve(u, argv, slow) {
       return { response: { ok: true, status: 200 }, text: dataItem.text };
     }
     else {
-      ng.logger.warn(ng.colour.red,`Could not find ${u} in retrieved data`,ng.colour.normal);
+      ng.logger.warn(ng.colour.red,`Could not find ${u} in stored data`,ng.colour.normal);
       return { response: { ok: false, status: 404 } };
     }
   }
@@ -640,7 +640,7 @@ const commands = {
             candidate.md.source.version = '2.x';
             candidate.md.openapi = o.openapi;
           }
-          if (o.info && o.info.version === '') {
+          if (o.info && (o.info.version === '' || o.info.version === 'version')) {
             o.info.version = '1.0.0';
           }
           metadata[provider].apis[service][o.info.version] = candidate.md;
@@ -930,12 +930,18 @@ function badges(metrics) {
 const startUp = {
   deploy: async function(candidates) {
     await mkdirp(logoPath);
+    return candidates;
   },
   docs: async function(candidates) {
     htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','redoc.html'),'utf8'));
+    return candidates;
   },
   validate: async function(candidates) {
+    resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
+    return candidates.filter(function(e,i,a){
+      return (e.provider !== 'azure.com'); // temp FIXME azure services
+    });
   }
 };
 
@@ -1139,7 +1145,7 @@ async function main(command, pathspec, options) {
   }
 
   if (startUp[command]) {
-    await startUp[command](candidates);
+    candidates = await startUp[command](candidates);
   }
 
   let count = 0;
