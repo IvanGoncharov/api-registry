@@ -520,7 +520,7 @@ const commands = {
     }
   },
   ci: async function(candidate) {
-    const diff = Math.round(Math.abs((ng.now - new Date(candidate.md.updated)) / dayMs));
+    const diff = Math.round(Math.abs((new Date(ng.now) - new Date(candidate.md.updated)) / dayMs));
     if (diff <= 1.1) {
       const s = fs.readFileSync(candidate.md.filename,'utf8');
       const o = yaml.parse(s);
@@ -866,7 +866,7 @@ function rssFeed(data,updated) {
   let feed = {};
   let rss = {};
 
-  let d = ng.now;
+  let d = new Date(ng.now);
 
   ng.logger.log('RSS Feed...',updated,Object.keys(data).length);
 
@@ -881,7 +881,7 @@ function rssFeed(data,updated) {
   rss.channel["atom:link"]["@type"] = 'application/rss+xml';
   rss.channel.description = rss.channel.title;
   rss.channel.webMaster = 'mike.ralphson@gmail.com (Mike Ralphson)';
-  rss.channel.pubDate = ng.now.toUTCString();
+  rss.channel.pubDate = d.toUTCString();
   rss.channel.generator = 'openapi-directory https://github.com/apis-guru/openapi-directory';
   rss.channel.item = [];
 
