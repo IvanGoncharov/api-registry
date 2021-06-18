@@ -434,15 +434,27 @@ const commands = {
       candidate.info = { title: 'API', 'x-origin': [ { url: candidate.md.source } ] };
       return candidate;
     }
-    let s = fs.readFileSync(candidate.md.filename,'utf8');
-    const o = yaml.parse(s);
+    let s = '';
+    let o;
+    try {
+      fs.readFileSync(candidate.md.filename,'utf8');
+      o = yaml.parse(s);
+    }
+    catch (ex) {
+      ng.fail(candidate,null,ex,'deploy');
+      ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+    }
     const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg';
     let origLogo = defaultLogo;
-    if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
+    if ((o && o.info['x-logo']) && (o.info['x-logo'].url)) {
       origLogo = o.info['x-logo'].url;
     }
-    const logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
-    const logoFull = path.join(logoPath,logoName);
+    let logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
+    let logoFull = path.join(logoPath,logoName);
+    while (logoFull.length >= 255) {
+      logoName = logoName.substr(0,logoName.length-1);
+      logoFull = logoFull.substr(0,logoFull.length-1);
+    }
     let colour = ng.colour.green;
     if (!fs.existsSync(logoFull)) { // if we have not deployed this logo yet
       let response;
@@ -458,7 +470,13 @@ const commands = {
         response = await res.buffer();
       }
       if (response) {
-        fs.writeFileSync(logoFull,response);
+        try {
+          fs.writeFileSync(logoFull,response);
+        }
+        catch (ex) {
+          ng.fail(candidate,null,ex,'deploy');
+          ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+        }
       }
     }
     ng.logger.prepend(colour+'📷 '+ng.colour.normal);
