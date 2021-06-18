@@ -60,7 +60,7 @@ const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchor
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 let htmlTemplate;
 let argv = {};
-let updateCount = 0;
+let iteration = 0;
 
 const template = function(templateString, templateVars) {
   // use this. for replaceable parameters
@@ -305,6 +305,14 @@ function countEndpoints(o) {
   return Object.keys(o.paths||o.topics||o.channels||{}).length;
 }
 
+function runGC(snapshot) {
+  iteration++;
+  if (iteration % 100 === 0) {
+    if (global.gc) global.gc();
+    if (snapshot) saveHeapSnapshot();
+  }
+}
+
 const commands = {
   checkpref: async function(candidate) {
     ng.logger.log('nop');
@@ -434,6 +442,9 @@ const commands = {
       candidate.info = { title: 'API', 'x-origin': [ { url: candidate.md.source } ] };
       return candidate;
     }
+
+    runGC(false);
+
     let s;
     let o;
     try {
@@ -727,11 +738,7 @@ const commands = {
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
 
-    updateCount++;
-    if (updateCount % 100 === 0) {
-      if (global.gc) global.gc();
-      saveHeapSnapshot();
-    }
+    runGC(true);
 
     try {
       const result = await retrieve(u, { cached: candidate.md.cached, provider: candidate.gp });
