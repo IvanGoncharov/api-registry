@@ -484,6 +484,7 @@ const commands = {
     if (o) {
       if (!o.info['x-logo']) o.info['x-logo'] = {};
       o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
+      candidate.info = o.info; // update the logo for list.json too
 
       s = yaml.stringify(o);
       const j = JSON.stringify(o,null,2);
