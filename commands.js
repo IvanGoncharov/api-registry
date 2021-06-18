@@ -1107,6 +1107,7 @@ function registerCommand(cmd) {
 }
 
 async function main(command, pathspec, options) {
+  process.exitCode = 99;
   argv = options;
   const metadata = ng.loadMetadata();
 

@@ -309,6 +309,7 @@ function loadMetadata() {
 }
 
 function saveMetadata(command) {
+  if (process.exitCode === 99) process.exitCode = 0;
   if (metadataConsistent) return true;
   logger.log('Saving metadata...');
   if (command === 'add') {
