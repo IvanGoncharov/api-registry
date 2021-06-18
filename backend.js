@@ -86,7 +86,7 @@ function fail(candidate,status,err,context) {
 }
 
 function slowCommand(command) {
-  return (command === 'populate');
+  return (['populate','deploy'].indexOf(command)>=0);
 }
 
 const driverFuncs = {
