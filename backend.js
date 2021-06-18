@@ -23,7 +23,7 @@ const zip = require('adm-zip');
 
 yaml.defaultOptions = { prettyErrors: true };
 
-const now = new Date();
+const now = new Date().toISOString();
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
@@ -381,7 +381,7 @@ function populateMetadata(apis, pathspec, argv) {
             let md = metadata[provider].apis[service][version];
             if (md.filename && md.filename.startsWith(pathspec)) {
               if (!argv.small || Object.keys(metadata[provider].apis).length < 50) {
-                md.run = now.toISOString();
+                md.run = now;
               }
             }
           }
@@ -413,11 +413,11 @@ function populateMetadata(apis, pathspec, argv) {
     if (api.parentPatch && Object.keys(api.parentPatch).length) {
       metadata[providerName].patch = api.parentPatch;
     }
-    //if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
+    if (!metadata[providerName].apis[serviceName]) metadata[providerName].apis[serviceName] = {};
     if (api.patch && Object.keys(api.patch).length) {
       metadata[providerName].apis[serviceName].patch = api.patch;
     }
-    //if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
+    if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
 
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
     if (!metadata[providerName].apis[serviceName][version].added) {
@@ -444,7 +444,7 @@ async function runDrivers(argv) {
 }
 
 function getCandidates(argv) {
-  const returnAll = (argv.driver === 'none');
+  const returnAll = (argv.driver === 'none' || argv.skipDrivers);
   const driver = (returnAll ? undefined : argv.driver);
   const result = [];
 
@@ -452,7 +452,7 @@ function getCandidates(argv) {
     for (let service in metadata[provider].apis) {
       for (let version in metadata[provider].apis[service]) {
         if (version !== 'patch') {
-          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run === now.toISOString())) {
+          if (returnAll || (driver && driver === metadata[provider].driver) || (!driver && metadata[provider].apis[service][version].run === now)) {
             const entry = { provider, driver: metadata[provider].driver, service, version, parent: metadata[provider].apis[service], gp: metadata[provider], md: metadata[provider].apis[service][version] };
             if (apis[entry.md.filename]) entry.info = apis[entry.md.filename].info;
             result.push(entry);
