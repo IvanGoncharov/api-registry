@@ -434,10 +434,10 @@ const commands = {
       candidate.info = { title: 'API', 'x-origin': [ { url: candidate.md.source } ] };
       return candidate;
     }
-    let s = '';
+    let s;
     let o;
     try {
-      fs.readFileSync(candidate.md.filename,'utf8');
+      s = fs.readFileSync(candidate.md.filename,'utf8');
       o = yaml.parse(s);
     }
     catch (ex) {
@@ -481,19 +481,22 @@ const commands = {
     }
     ng.logger.prepend(colour+'📷 '+ng.colour.normal);
 
-    if (!o.info['x-logo']) o.info['x-logo'] = {};
-    o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
+    if (o) {
+      if (!o.info['x-logo']) o.info['x-logo'] = {};
+      o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
 
-    s = yaml.stringify(o);
-    const j = JSON.stringify(o,null,2);
-    const filename = candidate.md.openapi.startsWith('3.') ? 'openapi.' : 'swagger.';
-    let filepath = path.resolve('.','deploy','v2','specs');
-    filepath = path.join(filepath,candidate.provider,candidate.service,candidate.version);
-    await mkdirp(filepath);
-    fs.writeFileSync(path.join(filepath,filename+'yaml'),s,'utf8');
-    fs.writeFileSync(path.join(filepath,filename+'json'),j,'utf8');
-    ng.logger.log(ng.colour.green+'✔'+ng.colour.normal);
-    return true;
+      s = yaml.stringify(o);
+      const j = JSON.stringify(o,null,2);
+      const filename = candidate.md.openapi.startsWith('3.') ? 'openapi.' : 'swagger.';
+      let filepath = path.resolve('.','deploy','v2','specs');
+      filepath = path.join(filepath,candidate.provider,candidate.service,candidate.version);
+      await mkdirp(filepath);
+      fs.writeFileSync(path.join(filepath,filename+'yaml'),s,'utf8');
+      fs.writeFileSync(path.join(filepath,filename+'json'),j,'utf8');
+      ng.logger.log(ng.colour.green+'✔'+ng.colour.normal);
+      return true;
+    }
+    return false;
   },
   docs: async function(candidate) {
     let docpath = path.resolve('.','deploy','docs',candidate.provider,candidate.service);
