@@ -20,8 +20,6 @@ if (argv.d) argv.debug = argv.d;
 if (argv.i) argv.issue = argv.i;
 if (argv.u) argv.unofficial = argv.u;
 
-process.exitCode = 0;
-
 let command = argv._[2];
 if (!command) {
   console.warn('Usage: registry {command}, where {command} is one of:');
