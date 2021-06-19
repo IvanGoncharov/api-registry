@@ -482,19 +482,19 @@ const commands = {
           throw new Error(`Content-Type: ${ct}`);
         }
         const lnl = logoName.toLowerCase();
-        if (ct.indexOf('image/png')>0) {
+        if (ct.indexOf('image/png')>=0) {
           if (lnl.indexOf('.png')<0) {
             logoName += '.png';
             logoFull += '.png';
           }
         }
-        if (ct.indexOf('image/svg+xml')>0) {
+        if (ct.indexOf('image/svg+xml')>=0) {
           if (lnl.indexOf('.svg')<0) {
             logoName += '.svg';
             logoFull += '.svg';
           }
         }
-        if (ct.indexOf('image/jpeg')>0) {
+        if (ct.indexOf('image/jpeg')>=0) {
           if (lnl.indexOf('.jpeg')<0 && lnl.indexOf('.jpg')<0) {
             logoName += '.jpeg';
             logoFull += '.jpeg';
