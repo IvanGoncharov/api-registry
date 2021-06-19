@@ -466,9 +466,10 @@ const commands = {
       logoName = logoName.substr(0,logoName.length-1);
       logoFull = logoFull.substr(0,logoFull.length-1);
     }
-    if (candidate.md.logoExt) {
-      logoName += candidate.md.logoExt;
-      logoFull += candidate.md.logoExt;
+    const logoExt = candidate.gp.logoExt||candidate.parent.logoExt||candidate.md.logoExt;
+    if (logoExt) {
+      logoName += logoExt;
+      logoFull += logoExt;
     }
 
     let colour = ng.colour.green;
