@@ -462,16 +462,44 @@ const commands = {
     }
     let logoName = origLogo.split('://').join('_').split('/').join('_').split('?')[0];
     let logoFull = path.join(logoPath,logoName);
-    while (logoFull.length >= 255) {
+    while (logoFull.length >= 250) {
       logoName = logoName.substr(0,logoName.length-1);
       logoFull = logoFull.substr(0,logoFull.length-1);
     }
+    if (candidate.md.logoExt) {
+      logoName += candidate.md.logoExt;
+      logoFull += candidate.md.logoExt;
+    }
+
     let colour = ng.colour.green;
     if (!fs.existsSync(logoFull)) { // if we have not deployed this logo yet
       let response;
       try {
         const res = await fetch(origLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
+        const ct = res.headers.get('Content-Type')||'';
+        if (!res.ok || ct.indexOf('image/')<0) {
+          throw new Error(`Content-Type: ${ct}`);
+        }
+        const lnl = logoName.toLowerCase();
+        if (ct.indexOf('image/png')>0) {
+          if (lnl.indexOf('.png')<0) {
+            logoName += '.png';
+            logoFull += '.png';
+          }
+        }
+        if (ct.indexOf('image/svg+xml')>0) {
+          if (lnl.indexOf('.svg')<0) {
+            logoName += '.svg';
+            logoFull += '.svg';
+          }
+        }
+        if (ct.indexOf('image/jpeg')>0) {
+          if (lnl.indexOf('.jpeg')<0 && lnl.indexOf('.jpg')<0) {
+            logoName += '.jpeg';
+            logoFull += '.jpeg';
+          }
+        }
       }
       catch (ex) {
         colour = ng.colour.red;
@@ -615,7 +643,8 @@ const commands = {
             try {
               // check the logo URL and populate the logoCache
               const res = await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
-              if (res.ok && res.headers.contentType.indexOf('image/')>=0) {
+              if (res.ok && res.headers.get('Content-Type').indexOf('image/')>=0) {
+                candidate.md.logoMediaType = res.headers.get('Content-Type');
                 gotLogo = true;
                 colour = ng.colour.green;
               }
