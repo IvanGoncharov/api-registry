@@ -1096,6 +1096,8 @@ const wrapUp = {
       fs.writeFileSync(path.resolve('.','deploy','index.html'),indexHtml,'utf8');
       const ourAPI = fs.readFileSync(path.resolve('.','metadata','openapi.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','openapi.yaml'),ourAPI,'utf8');
+      const cname = fs.readFileSync(path.resolve('.','metadata','CNAME'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','CNAME'),cname,'utf8');
     }
     catch (ex) {
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
