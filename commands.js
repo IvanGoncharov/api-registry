@@ -169,8 +169,16 @@ async function validateObj(o,s,candidate,source) {
         o = resOpt.openapi;
       }
     }
-    if (o.swagger && o.swagger == '2.0') {
+    if (o.openapi && o.openapi.startsWith('3.0') && o.webhooks && !o.paths) { // adyen
+      candidate.md.autoUpgrade = '3.1.0';
+      if (!o.servers && argv.provider) {
+        o.servers = [ { url: `https://${argv.provider.key}` } ];
+      }
+    }
+    if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== '3.0.0')) {
       ng.logger.prepend('C');
+      valOpt.targetVersion = '3.0.0';
+      if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
       await s2o.convertObj(o, valOpt);
       o = valOpt.openapi; // for tests below, we extract it from options outside this func
     }
@@ -270,7 +278,7 @@ async function retrieve(u, argv, slow) {
 async function getObjFromText(text, candidate) {
   if (text.startsWith('FORMAT: ')) {
     const result = await apiBlueprint(text,{});
-    candidate.md.autoUpgrade = true;
+    candidate.md.autoUpgrade = '3.0.0';
     return result.swagger;
   }
   else {
@@ -302,7 +310,7 @@ function updatePreferredFlag(candidate, flag) {
 }
 
 function countEndpoints(o) {
-  return Object.keys(o.paths||o.topics||o.channels||{}).length;
+  return Object.keys(o.paths||o.webhooks||o.topics||o.channels||{}).length;
 }
 
 function runGC(snapshot) {
@@ -727,9 +735,9 @@ const commands = {
           }
           o.info['x-origin'].push(candidate.md.source);
 
-          o = deepmerge(o,candidate.gp.patch||{});
-
+          o = deepmerge(o,candidate.gp.patch||{}); // TODO FIXME check these two lines
           const patch = ng.Tree(candidate.parent.patch);
+
           if (argv.categories) {
             const categories = argv.categories.split(',');
             o.info['x-apisguru-categories'] = categories;
@@ -751,7 +759,7 @@ const commands = {
           candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
           newCandidates.push(candidate);
-          ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+          ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
       else {
@@ -774,7 +782,7 @@ const commands = {
       const result = await retrieve(u, { cached: candidate.md.cached, provider: candidate.gp });
 
       let o = {};
-      let autoUpgrade = false;
+      let autoUpgrade;
       if (result && result.response.ok) {
         delete candidate.md.statusCode;
         const s = result.text;
@@ -787,7 +795,7 @@ const commands = {
             // passed validation as OAS 3 but only by patching the source
             // therefore the original OAS 2 document might not be valid as-is
             o = valOpt.openapi;
-            autoUpgrade = true;
+            autoUpgrade = o.openapi;
           }
 
           if (o.info && (o.info.version === '')) {
@@ -854,7 +862,7 @@ const commands = {
           if (valOpt.convWarn && valOpt.convWarn.length) {
             candidate.md.fixes += valOpt.convWarn.length;
           }
-          if (autoUpgrade) candidate.md.autoUpgrade = true;
+          if (autoUpgrade) candidate.md.autoUpgrade = autoUpgrade;
         }
         else { // if not valid
           if (argv.save) {
@@ -1203,6 +1211,7 @@ async function main(command, pathspec, options) {
       if (leads[u].provider) {
         argv.host = metadata[leads[u].provider].host;
         argv.provider = metadata[leads[u].provider];
+        argv.provider.key = metadata[leads[u].provider];
       }
       await commands.add(u, metadata);
     }
