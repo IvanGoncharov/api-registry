@@ -166,7 +166,7 @@ async function validateObj(o,s,candidate,source) {
       valOpt.patches = 1; // force taking from valOpt.openapi
     }
     else { // $ref doesn't mean a JSON Reference in google discovery land
-      if (!argv.stub && resOpt.resolve) {
+      if (!argv.stub && resOpt.resolve && (candidate.md.resolve !== false)) {
         ng.logger.prepend('R');
         await resolver.resolve(o,source,resOpt);
         o = resOpt.openapi;
