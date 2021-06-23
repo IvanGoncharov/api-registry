@@ -50,6 +50,8 @@ const logoPath = path.resolve('.','deploy','v2','cache','logo');
 const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
+const oasDefaultVersion = '3.0.0';
+
 const liquidEngine = new liquid.Engine();
 
 const newCandidates = [];
@@ -146,6 +148,7 @@ async function getFavicon(candidate) {
 
 async function validateObj(o,s,candidate,source) {
   valOpt.text = s;
+  valOpt.targetVersion = oasDefaultVersion;
   let result = { valid: false };
   try {
     if (o.discoveryVersion) {
@@ -169,15 +172,14 @@ async function validateObj(o,s,candidate,source) {
         o = resOpt.openapi;
       }
     }
-    if (o.openapi && o.openapi.startsWith('3.0') && o.webhooks && !o.paths) { // adyen
+    if (o.openapi && o.openapi.startsWith('3.0') && o.webhooks) { // seen in adyen, issue #23
       candidate.md.autoUpgrade = '3.1.0';
       if (!o.servers && argv.provider) {
         o.servers = [ { url: `https://${argv.provider.key}` } ];
       }
     }
-    if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== '3.0.0')) {
+    if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
       ng.logger.prepend('C');
-      valOpt.targetVersion = '3.0.0';
       if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
       await s2o.convertObj(o, valOpt);
       o = valOpt.openapi; // for tests below, we extract it from options outside this func
@@ -196,7 +198,7 @@ async function validateObj(o,s,candidate,source) {
     else if (o.asyncapi) {
       result.valid = true; // TODO validate asyncapi
     }
-    if (!result.valid) throw new Error('Validation failure');
+    if (!result.valid) throw new Error(`Validation failure, OpenAPI ${o.openapi||o.swagger||o.swaggerVersion}`);
   }
   catch (ex) {
     ng.logger.log();
@@ -278,7 +280,7 @@ async function retrieve(u, argv, slow) {
 async function getObjFromText(text, candidate) {
   if (text.startsWith('FORMAT: ')) {
     const result = await apiBlueprint(text,{});
-    candidate.md.autoUpgrade = '3.0.0';
+    candidate.md.autoUpgrade = oasDefaultVersion;
     return result.swagger;
   }
   else {
