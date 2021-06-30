@@ -175,7 +175,7 @@ async function validateObj(o,s,candidate,source) {
     if (o.openapi && o.openapi.startsWith('3.0') && o.webhooks) { // seen in adyen, issue #23
       candidate.md.autoUpgrade = '3.1.0';
       if (!o.servers && argv.provider) {
-        o.servers = [ { url: `https://${argv.provider.key}` } ];
+        o.servers = [ { url: `https://${argv.providerKey}` } ];
       }
     }
     if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
@@ -1213,7 +1213,7 @@ async function main(command, pathspec, options) {
       if (leads[u].provider) {
         argv.host = metadata[leads[u].provider].host;
         argv.provider = metadata[leads[u].provider];
-        argv.provider.key = metadata[leads[u].provider];
+        argv.providerKey = leads[u].provider;
       }
       await commands.add(u, metadata);
     }
