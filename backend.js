@@ -15,7 +15,7 @@ const fetch = require('fetch-filecache-for-crawling');
 const jmespath = require('jmespath').search;
 const mkdirp = require('mkdirp');
 const rf = require('node-readfiles');
-const sortobject = require('deep-sort-object');
+const sortobject = require('sortobject').default;
 const yaml = require('yaml');
 const tar = require('tar');
 const puppeteer = require('puppeteer');
@@ -246,10 +246,7 @@ function registerDriver(drv) {
 }
 
 function sortJson(json) {
-  json = sortobject(json, function (a, b) {
-    if (a === b) return 0;
-    return (a < b) ? -1 : 1;
-  });
+  json = sortobject(json);
 
   //detect OpenAPI format
   if (!json.openapi && !json.swagger && !json.asyncapi) {
@@ -420,7 +417,7 @@ function populateMetadata(apis, pathspec, argv) {
     if (!metadata[providerName].apis[serviceName][version]) metadata[providerName].apis[serviceName][version] = {};
 
     metadata[providerName].apis[serviceName][version] = Object.assign({},metadata[providerName].apis[serviceName][version],entry);
-    if (!metadata[providerName].apis[serviceName][version].added) {
+    if (typeof metadata[providerName].apis[serviceName][version].added === 'undefined') {
       metadata[providerName].apis[serviceName][version].added = now;
     }
     delete metadata[providerName].apis[serviceName][version].patch; // temp FIXME (removing patches at version level)
