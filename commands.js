@@ -39,7 +39,7 @@ yaml.defaultOptions = { prettyErrors: true, lineWidth: 0 };
 const httpAgent = new http.Agent({ keepAlive: true });
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
 const bobwAgent = function(_parsedURL) {
-  if (_parsedURL.protocol == 'http:') {
+  if (_parsedURL.protocol === 'http:') {
     return httpAgent;
   } else {
     return httpsAgent;
@@ -1062,9 +1062,10 @@ const wrapUp = {
       providerCount[key]++;
 
       if (candidate.service) key += ':'+candidate.service;
-      if (!list.key) list[key] = { added: candidate.md.added, preferred: candidate.version, versions: {} };
-      list[key].versions[candidate.version] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
-      if (candidate.preferred) list[key].preferred = candidate.version;
+      const cVersion = cleanseVersion(candidate.version);
+      if (!list.key) list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
+      list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
+      if (candidate.md.preferred) list[key].preferred = cVersion;
     }
 
     let others = 0;
