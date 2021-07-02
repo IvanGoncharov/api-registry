@@ -1070,7 +1070,7 @@ const wrapUp = {
       providerCount[key]++;
 
       if (candidate.service) key += ':'+candidate.service;
-      const cVersion = cleanseVersion(candidate.version);
+      const cVersion = ng.cleanseVersion(candidate.version);
       if (!list.key) list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
       list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
       if (candidate.md.preferred) list[key].preferred = cVersion;
