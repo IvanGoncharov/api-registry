@@ -394,7 +394,7 @@ function populateMetadata(apis, pathspec, argv) {
     const comp = filename.split('/');
     const name = comp.pop();
     const openapi = api.openapi ? api.openapi : api.swagger;
-    const version = comp.pop();
+    let version = comp.pop();
     if (typeof api.info.version !== 'undefined') version = api.info.version; // for case of cleansed version in path
     const serviceName = api.info['x-serviceName'] ? api.info['x-serviceName'] : '';
     const providerName = api.info['x-providerName'];
