@@ -573,9 +573,17 @@ const commands = {
   ci: async function(candidate) {
     const diff = Math.round(Math.abs((new Date(ng.now) - new Date(candidate.md.updated)) / dayMs));
     if (diff <= 1.1) {
-      const s = fs.readFileSync(candidate.md.filename,'utf8');
-      const o = yaml.parse(s);
-      return await validateObj(o,s,candidate,candidate.md.filename);
+      try {
+        const s = fs.readFileSync(candidate.md.filename,'utf8');
+        const o = yaml.parse(s);
+        const valid = await validateObj(o,s,candidate,candidate.md.filename); // can call ng.fail()
+        if (!valid) process.exitCode = 1;
+        return valid;
+      }
+      catch (ex) {
+        ng.fail(candidate,null,ex,'validate');
+        ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+      }
     }
     else {
       ng.logger.log(ng.colour.yellow+'🕓'+ng.colour.normal);
