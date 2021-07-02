@@ -51,6 +51,7 @@ const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
 const oasDefaultVersion = '3.0.0';
+const weekAgo = new Date(new Date().setDate(new Date().getDate()-7));
 
 const liquidEngine = new liquid.Engine();
 
@@ -952,7 +953,7 @@ function rssFeed(data,updated) {
         i.guid = {};
         i.guid["@isPermaLink"] = 'false';
         i.guid[""] = api;
-        i.pubDate = new Date(updated ? p.updated : (p.added ? p.added : p.updated)).toUTCString();
+        i.pubDate = new Date((updated ? p.updated : p.added)||weekAgo).toUTCString();
 
         if (p.info["x-logo"]) {
           i.enclosure = {};
@@ -1025,7 +1026,6 @@ const startUp = {
 const wrapUp = {
   deploy: async function(candidates) {
 
-    const weekAgo = new Date(new Date().setDate(new Date().getDate()-7));
 
     let totalEndpoints = 0;
     let unreachable = 0;
