@@ -944,7 +944,7 @@ function rssFeed(data,updated) {
         i.guid = {};
         i.guid["@isPermaLink"] = 'false';
         i.guid[""] = api;
-        i.pubDate = new Date(updated ? p.updated : p.added).toUTCString();
+        i.pubDate = new Date(updated ? p.updated : (p.added ? p.added : p.updated)).toUTCString();
 
         if (p.info["x-logo"]) {
           i.enclosure = {};
