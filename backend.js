@@ -171,7 +171,8 @@ const driverFuncs = {
     for (let i=0;i<services.length;i++) {
       let serv = services[i];
       if (Array.isArray(serv)) serv = serv[0];
-      leads[urls[i]] = { service: serv.toLowerCase(), provider };
+      if (typeof serv === 'string') serv = serv.toLowerCase();
+      leads[urls[i]] = { service: serv, provider };
       if (dataItems[i]) {
         md.data.push({ url: urls[i], text: JSON.stringify(dataItems[i]) });
       }
