@@ -1113,6 +1113,8 @@ const wrapUp = {
     try {
       const indexHtml = fs.readFileSync(path.resolve('.','metadata','index.html'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','index.html'),indexHtml,'utf8');
+      const chartHtml = fs.readFileSync(path.resolve('.','metadata','charts.html'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','charts.html'),chartHtml,'utf8');
       const ourAPI = fs.readFileSync(path.resolve('.','metadata','openapi.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','openapi.yaml'),ourAPI,'utf8');
       const cname = fs.readFileSync(path.resolve('.','metadata','CNAME'),'utf8');
