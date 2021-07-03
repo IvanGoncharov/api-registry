@@ -1190,7 +1190,7 @@ function registerCommand(cmd) {
 
 async function main(command, pathspec, options) {
   process.exitCode = 99;
-  argv = options;
+  argv = options; // set the global variable
   const metadata = ng.loadMetadata();
 
   if ((command === 'add') || (command === 'check')) {
