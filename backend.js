@@ -307,6 +307,7 @@ function loadMetadata() {
 }
 
 function saveMetadata(command) {
+  if (process.exitCode === 1 && command === 'update') process.exitCode = 0;
   if (process.exitCode === 99) process.exitCode = 0;
   if (metadataConsistent) return true;
   logger.log('Saving metadata...');
