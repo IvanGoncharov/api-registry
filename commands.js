@@ -30,6 +30,8 @@ const google = require('google-discovery-to-swagger');
 const postman = require('postman2openapi');
 const apib2swagger = require('apib2swagger');
 const apiBlueprint = util.promisify(apib2swagger.convert);
+const postmanCT = require('postman-collection-transformer');
+const postman1 = util.promisify(postmanCT.convert);
 const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 
 const ng = require('./backend.js');
@@ -152,6 +154,11 @@ async function validateObj(o,s,candidate,source) {
   valOpt.targetVersion = oasDefaultVersion;
   let result = { valid: false };
   try {
+    if (o.id && o.requests) {
+      const options = { inputVersion: '1.0.0', outputVersion: '2.1.0', retainIds: true };
+      o = await postman1(o, options);
+      s = JSON.stringify(o);
+    }
     if (o.discoveryVersion) {
       ng.logger.prepend('C');
       o = google.convert(o);
@@ -162,6 +169,7 @@ async function validateObj(o,s,candidate,source) {
       ng.logger.prepend('C');
       s = s.split('{{server}}').join(argv.host);
       s = s.split('{{baseURL}}').join(argv.host);
+      s = s.split('{{url}}').join(argv.host);
       o = JSON.parse(postman.transpile(s,'json'));
       valOpt.openapi = o;
       valOpt.patches = 1; // force taking from valOpt.openapi
@@ -593,7 +601,7 @@ const commands = {
   check: async function(u, metadata) {
     ng.logger.prepend(u+' ');
     try {
-      const result = await retrieve(u);
+      const result = await retrieve(u,argv);
       if (result.response.ok) {
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
@@ -720,6 +728,12 @@ const commands = {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'postman';
             candidate.md.source.version = '2.x';
+            candidate.md.openapi = o.openapi;
+          }
+          else if (org.id && org.requests) {
+            candidate.md.name = 'openapi.yaml';
+            candidate.md.source.format = 'postman';
+            candidate.md.source.version = '1.0';
             candidate.md.openapi = o.openapi;
           }
           if (o.info && (o.info.version === '' || o.info.version === 'version')) {

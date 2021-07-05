@@ -35,6 +35,7 @@
     "oas-resolver": "^2.5.5",
     "oas-validator": "^5.0.7",
     "parse-domain": "^3.0.3",
+    "postman-collection-transformer": "^4.1.3",
     "postman2openapi": "^1.0.0-beta",
     "puppeteer": "^10.0.0",
     "remove-markdown": "^0.3.0",
