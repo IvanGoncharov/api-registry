@@ -299,7 +299,7 @@ function clone(o) {
 }
 
 function cleanseVersion(v) {
-  return v.split('/').join('-').split('\\').join('-').split(':').join('');
+  return v.split('/').join('-').split('\\').join('-').split(':').join('').split('.*').join('');
 }
 
 function loadMetadata() {
@@ -398,7 +398,6 @@ function populateMetadata(apis, pathspec, argv) {
     const name = comp.pop();
     const openapi = api.openapi ? api.openapi : api.swagger;
     let version = comp.pop();
-    if (typeof api.info.version !== 'undefined') version = api.info.version; // for case of cleansed version in path
     const serviceName = api.info['x-serviceName'] ? api.info['x-serviceName'] : '';
     const providerName = api.info['x-providerName'];
     const preferred = (typeof api.info['x-preferred'] === 'boolean') ? api.info['x-preferred'] : undefined;

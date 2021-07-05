@@ -739,10 +739,10 @@ const commands = {
           if (o.info && (o.info.version === '' || o.info.version === 'version')) {
             o.info.version = '1.0.0';
           }
-          metadata[provider].apis[service][o.info.version] = candidate.md;
-          candidate.version = o.info.version;
+          candidate.version = ng.cleanseVersion(o.info.version);
+          metadata[provider].apis[service][candidate.version] = candidate.md;
 
-          const filepath = path.resolve('.','APIs',provider,service,ng.cleanseVersion(o.info.version));
+          const filepath = path.resolve('.','APIs',provider,service,candidate.version);
           await mkdirp(filepath);
           const filename = path.resolve(filepath,candidate.md.name);
           candidate.md.filename = path.relative('.',filename);
@@ -784,7 +784,7 @@ const commands = {
           candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
           newCandidates.push(candidate);
-          ng.logger.log('Wrote new',provider,service||'-',o.info.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+          ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
       else {
