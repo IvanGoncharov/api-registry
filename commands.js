@@ -259,7 +259,9 @@ async function retrieve(u, argv, slow) {
   if (u.startsWith('http')) {
     ng.logger.prepend('F');
     const timeout = slow ? 15000 : 5000;
-    response = await fetch(u, {logToConsole: argv.verbose, timeout, 'User-Agent': 'curl/7.68.0', accept: '*/*', agent:bobwAgent, cacheFolder: mainCache, refresh: 'default'});
+    const headers = { 'Accept': '*/*', 'Accept-Encoding': 'gzip,deflate' };
+    if (argv.body) headers['Content-Type'] = 'application/json';
+    response = await fetch(u, { logToConsole: argv.verbose, timeout, agent:bobwAgent, cacheFolder: mainCache, refresh: 'default', method: (argv.method||'GET'), body: argv.body, headers });
     if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
       ok = true;
     }
@@ -804,7 +806,7 @@ const commands = {
     runGC(true);
 
     try {
-      const result = await retrieve(u, { cached: candidate.md.cached, provider: candidate.gp });
+      const result = await retrieve(u, { cached: candidate.md.cached, provider: candidate.gp, method: candidate.gp.method, body: candidate.md.body });
 
       let o = {};
       let autoUpgrade;
