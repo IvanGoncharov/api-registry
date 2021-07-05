@@ -148,7 +148,9 @@ const driverFuncs = {
         const components = href.split('/');
         components.pop(); // remove last identifier section of url
         components.push('blobId');
-        md.data.push({ url: components.join('/'), text });
+        const blobUrl = components.join('/');
+        logger.log(blobUrl);
+        md.data.push({ url: blobUrl, text });
       }
     }
     return true;
