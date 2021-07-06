@@ -24,6 +24,7 @@
     "apib2swagger": "^1.12.0",
     "badge-maker": "^3.3.0",
     "deepmerge": "^4.2.2",
+    "dns-lookup-cache": "^1.0.4",
     "fetch-filecache-for-crawling": "^4.0.2",
     "google-discovery-to-swagger": "git://github.com/apis-guru/google-discovery-to-swagger.git#openapi3",
     "jgexml": "^0.4.4",
