@@ -33,13 +33,14 @@ const apiBlueprint = util.promisify(apib2swagger.convert);
 const postmanCT = require('postman-collection-transformer');
 const postman1 = util.promisify(postmanCT.convert);
 const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
+const dnsCache = require('dns-lookup-cache');
 
 const ng = require('./backend.js');
 
 yaml.defaultOptions = { prettyErrors: true, lineWidth: 0 };
 
-const httpAgent = new http.Agent({ keepAlive: true });
-const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
+const httpAgent = new http.Agent({ keepAlive: true, lookup: dnsCache.lookup });
+const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false, lookup: dnsCache.lookup });
 const bobwAgent = function(_parsedURL) {
   if (_parsedURL.protocol === 'http:') {
     return httpAgent;
