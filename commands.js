@@ -1235,7 +1235,6 @@ async function main(command, pathspec, options) {
     for (let u in leads) {
       argv.service = leads[u].service;
       if (leads[u].file) {
-        //argv.cached = path.relative('./APIs/',leads[u].file);
         argv.cached = path.relative('.',leads[u].file);
       }
       if (leads[u].provider) {

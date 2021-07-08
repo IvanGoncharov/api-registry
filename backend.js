@@ -479,7 +479,7 @@ function trimLeads(candidates) {
   if (Object.keys(leads).length) {
     for (let candidate of candidates) {
       if (leads[candidate.md.source.url]) {
-        candidate.md.cached = leads[candidate.md.source.url].file;
+        candidate.md.cached = path.relative('.', leads[candidate.md.source.url].file);
         delete leads[candidate.md.source.url];
       }
     }
