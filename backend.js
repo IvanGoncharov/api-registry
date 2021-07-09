@@ -203,19 +203,28 @@ const driverFuncs = {
     // TODO allow for authentication
     const codeloadUrl = `https://codeload.github.com/${md.org}/${md.repo}/tar.gz/${md.branch}`;
     const res = await fetch(codeloadUrl, { cacheFolder: archiveCache });
-    const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
-    res.body.pipe(tarx);
-    const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
-    for (let file of fileArr) {
-      const fileUrl = `https://raw.githubusercontent.com/${md.org}/${md.repo}/${md.branch}/${file}`;
-      // TODO way to extract service can differ between providers
-      let service = path.basename(file,path.extname(file));
-      service = service.split('-v')[0];
-      if (file.indexOf('deref')<0) { // FIXME hardcoded
-        leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
+    if (res.ok) {
+      const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
+      res.body.pipe(tarx);
+      const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
+      let count = 0;
+      for (let file of fileArr) {
+        const fileUrl = `https://raw.githubusercontent.com/${md.org}/${md.repo}/${md.branch}/${file}`;
+        // TODO way to extract service can differ between providers
+        let service = path.basename(file,path.extname(file));
+        service = service.split('-v')[0];
+        if (file.indexOf('deref')<0) { // FIXME hardcoded
+          count++;
+          leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
+        }
       }
+      logger.log(`   ${count} files found from archive`);
+      return true;
     }
-    return true;
+    else {
+      logger.warn(`   Received status code ${res.status}`);
+      return false;
+    }
   },
   zip: async function(provider,md) {
     md.data = [];
