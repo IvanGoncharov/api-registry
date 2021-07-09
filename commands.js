@@ -285,6 +285,7 @@ async function retrieve(u, argv, slow) {
     s = fs.readFileSync(u,'utf8');
     response.status = 200;
     response.ok = true;
+    response.url = url.pathToFileURL(u).toString();
   }
   return { response, text:s }
 }
@@ -628,6 +629,9 @@ const commands = {
     try {
       const result = await retrieve(u, argv, true);
       if (result.response.ok) {
+        if (result.response.url) {
+          u = result.response.url;
+        }
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
         const org = o;
