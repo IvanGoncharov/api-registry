@@ -21,8 +21,6 @@ const tar = require('tar');
 const puppeteer = require('puppeteer');
 const zip = require('adm-zip');
 
-yaml.defaultOptions = { prettyErrors: true };
-
 const now = new Date().toISOString();
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
@@ -38,6 +36,14 @@ let metadataConsistent = false;
 let apis = {};
 let leads = {};
 let browser;
+
+function yamlParse(str, options = { prettyErrors: true, logLevel: 'error' }) {
+  return yaml.parse(str, options);
+}
+
+function yamlStringify(obj, options = { prettyErrors: true, logLevel: 'error', lineWidth: 0 }) {
+  return yaml.stringify(obj, options);
+}
 
 let logger = {
   prepend(s) {
@@ -313,7 +319,7 @@ function cleanseVersion(v) {
 
 function loadMetadata() {
   const metaStr = fs.readFileSync(path.resolve('.','metadata','registry.yaml'),'utf8');
-  metadata = yaml.parse(metaStr);
+  metadata = yamlParse(metaStr);
   return metadata;
 }
 
@@ -330,7 +336,7 @@ function saveMetadata(command) {
   }
   let metaStr;
   try {
-    metaStr = yaml.stringify(metadata,{prettyErrors:true});
+    metaStr = yamlStringify(metadata);
   }
   catch (ex) {
     logger.warn(colour.red,ex,colour.normal);
@@ -348,7 +354,7 @@ function saveMetadata(command) {
     fs.writeFileSync(path.resolve('.','metadata','temp.js'),util.inspect(metadata,{depth:Infinity}),'utf8');
   }
   try {
-    fs.writeFileSync(path.resolve('.','metadata',command+'_failures.yaml'),yaml.stringify(failures),'utf8');
+    fs.writeFileSync(path.resolve('.','metadata',command+'_failures.yaml'),yamlStringify(failures),'utf8');
   }
   catch (ex) {
     logger.warn(colour.red+ex.message+colour.normal,'writing failures');
@@ -370,7 +376,7 @@ async function gather(pathspec, command, argv) {
   logger.log('Gathering...');
   let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
-      const obj = yaml.parse(content);
+      const obj = yamlParse(content);
       const hash = sha256(content);
       if (obj) {
         apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
@@ -503,6 +509,8 @@ function trimLeads(candidates) {
 }
 
 module.exports = {
+  yamlParse,
+  yamlStringify,
   Tree,
   colour,
   logger,
