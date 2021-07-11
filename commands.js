@@ -19,8 +19,7 @@ const pd = require('parse-domain');
 const s2o = require('swagger2openapi');
 const resolver = require('oas-resolver');
 const validator = require('oas-validator');
-const yaml = require('yaml');
-const jsy = require('js-yaml');
+const yml = require('yaml');
 const removeMarkdown = require('remove-markdown');
 const j2x = require('jgexml/json2xml.js');
 const shields = require('badge-maker').makeBadge;
@@ -36,8 +35,6 @@ const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 const dnsCache = require('dns-lookup-cache');
 
 const ng = require('./backend.js');
-
-yaml.defaultOptions = { prettyErrors: true, lineWidth: 0 };
 
 const httpAgent = new http.Agent({ keepAlive: true, lookup: dnsCache.lookup });
 const httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false, lookup: dnsCache.lookup });
@@ -299,11 +296,11 @@ async function getObjFromText(text, candidate) {
   else {
     let obj;
     try {
-      obj = yaml.parse(text);
+      obj = ng.yamlParse(text);
     }
     catch (ex) {
-      ng.logger.warn('Falling back to js-yaml...');
-      obj = jsy.load(text);
+      ng.logger.warn('Falling back to lenient yaml...');
+      obj = yml.parse(text, { strict: false, loglevel: 'silent', prettyErrors: true });
     }
     return obj;
   }
@@ -312,9 +309,9 @@ async function getObjFromText(text, candidate) {
 function updatePreferredFlag(candidate, flag) {
   try {
     const s = fs.readFileSync(candidate.md.filename,'utf8');
-    const api = yaml.parse(s);
+    const api = ng.yamlParse(s);
     api.info["x-preferred"] = flag;
-    fs.writeFileSync(candidate.md.filename,yaml.stringify(api),'utf8');
+    fs.writeFileSync(candidate.md.filename,ng.yamlStringify(api),'utf8');
     candidate.md.preferred = flag;
   }
   catch (ex) {
@@ -358,7 +355,7 @@ const commands = {
   },
   metadata: async function(candidate) {
     ng.logger.log();
-    ng.logger.log(yaml.stringify(candidate.md));
+    ng.logger.log(ng.yamlStringify(candidate.md));
   },
   contact: async function(candidate) {
     ng.logger.log();
@@ -408,11 +405,11 @@ const commands = {
   },
   rewrite: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
-    const o = yaml.parse(s);
+    const o = ng.yamlParse(s);
     if (o.info) {
       o.info['x-preferred'] = candidate.md.preferred;
     }
-    fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
+    fs.writeFileSync(candidate.md.filename,ng.yamlStringify(o),'utf8');
     ng.logger.log('rw');
   },
   purge: async function(candidate) {
@@ -427,7 +424,7 @@ const commands = {
   endpoints: async function(candidate) {
     try {
       let s = fs.readFileSync(candidate.md.filename,'utf8');
-      const o = yaml.parse(s);
+      const o = ng.yamlParse(s);
       candidate.md.endpoints = countEndpoints(o);
       if (candidate.md.endpoints === 0) {
         fs.unlinkSync(candidate.md.filename);
@@ -442,7 +439,7 @@ const commands = {
   },
   cache: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
-    const o = yaml.parse(s);
+    const o = ng.yamlParse(s);
     const origin = o.info['x-origin'];
     const source = ng.clone(origin[origin.length-1]);
 
@@ -451,7 +448,7 @@ const commands = {
     source.url = source.url.replace('file://localhost/','');
 
     origin.push(source);
-    fs.writeFileSync(candidate.md.filename,yaml.stringify(o),'utf8');
+    fs.writeFileSync(candidate.md.filename,ng.yamlStringify(o),'utf8');
     candidate.md.history = ng.clone(origin);
     candidate.md.source = candidate.md.history.pop();
     ng.logger.log('cache');
@@ -472,7 +469,7 @@ const commands = {
     let o;
     try {
       s = fs.readFileSync(candidate.md.filename,'utf8');
-      o = yaml.parse(s);
+      o = ng.yamlParse(s);
     }
     catch (ex) {
       ng.fail(candidate,null,ex,'deploy');
@@ -549,7 +546,7 @@ const commands = {
       o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
       candidate.info = o.info; // update the logo for list.json too
 
-      s = yaml.stringify(o);
+      s = ng.yamlStringify(o);
       const j = JSON.stringify(o,null,2);
       const filename = candidate.md.openapi.startsWith('3.') ? 'openapi.' : 'swagger.';
       let filepath = path.resolve('.','deploy','v2','specs');
@@ -573,7 +570,7 @@ const commands = {
   validate: async function(candidate) {
     try {
       const s = fs.readFileSync(candidate.md.filename,'utf8');
-      const o = yaml.parse(s);
+      const o = ng.yamlParse(s);
       const valid = await validateObj(o,s,candidate,candidate.md.filename); // can call ng.fail()
       if (!valid) process.exitCode = 1;
       return valid;
@@ -588,7 +585,7 @@ const commands = {
     if (diff <= 1.1) {
       try {
         const s = fs.readFileSync(candidate.md.filename,'utf8');
-        const o = yaml.parse(s);
+        const o = ng.yamlParse(s);
         const valid = await validateObj(o,s,candidate,candidate.md.filename); // can call ng.fail()
         if (!valid) process.exitCode = 1;
         return valid;
@@ -786,7 +783,7 @@ const commands = {
             candidate.parent.patch = patch;
           }
 
-          const content = yaml.stringify(ng.sortJson(o));
+          const content = ng.yamlStringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
           candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
@@ -882,7 +879,7 @@ const commands = {
             }
           }
 
-          const content = yaml.stringify(ng.sortJson(o),{lineWidth:0});
+          const content = ng.yamlStringify(ng.sortJson(o));
           fs.writeFileSync(candidate.md.filename,content,'utf8');
           const newHash = ng.sha256(content);
           if (candidate.md.hash !== newHash) {
@@ -898,7 +895,7 @@ const commands = {
         }
         else { // if not valid
           if (argv.save) {
-            fs.writeFileSync('./temp.yaml',yaml.stringify(o),'utf8');
+            fs.writeFileSync('./temp.yaml',ng.yamlStringify(o),'utf8');
           }
           return false;
         }
