@@ -211,7 +211,9 @@ const driverFuncs = {
     const res = await fetch(codeloadUrl, { cacheFolder: archiveCache });
     if (res.ok) {
       const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
-      res.body.pipe(tarx);
+      res.body.pipe(tarx).on('warn',function(code,message,data){
+        logger.warn('tar',message);
+      });
       const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
       let count = 0;
       for (let file of fileArr) {
