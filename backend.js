@@ -210,9 +210,11 @@ const driverFuncs = {
     const codeloadUrl = `https://codeload.github.com/${md.org}/${md.repo}/tar.gz/${md.branch}`;
     const res = await fetch(codeloadUrl, { cacheFolder: archiveCache });
     if (res.ok) {
-      const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
+      const tarx = tar.x({ strip: 1, sync: true, C: `./metadata/${provider}.cache` });
       res.body.pipe(tarx).on('warn',function(code,message,data){
         logger.warn('tar',message);
+      }).on('entry',function(entry){
+        //logger.log('tar',entry.header.path);
       });
       const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
       let count = 0;
