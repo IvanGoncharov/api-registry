@@ -1,6 +1,6 @@
 {
   "name": "@Mermade/api-registry",
-  "version": "1.0.38",
+  "version": "1.0.39",
   "description": "Own-label API registry",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
