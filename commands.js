@@ -459,7 +459,7 @@ const commands = {
   deploy: async function(candidate) {
     if (argv.dashboard) {
       ng.logger.log();
-      candidate.info = { title: 'API', 'x-origin': [ { url: candidate.md.source } ] };
+      candidate.info = { title: 'API', version: candidate.version, 'x-origin': [ { url: candidate.md.source } ] };
       return candidate;
     }
 
@@ -545,6 +545,7 @@ const commands = {
       if (!o.info['x-logo']) o.info['x-logo'] = {};
       o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
       candidate.info = o.info; // update the logo for list.json too
+      candidate.externalDocs = o.externalDocs;
 
       s = ng.yamlStringify(o);
       const j = JSON.stringify(o,null,2);
@@ -1090,7 +1091,7 @@ const wrapUp = {
       if (candidate.service) key += ':'+candidate.service;
       const cVersion = ng.cleanseVersion(candidate.version);
       if (!list.key) list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
-      list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
+      list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
       if (candidate.md.preferred) list[key].preferred = cVersion;
     }
 
