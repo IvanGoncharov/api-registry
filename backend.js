@@ -21,7 +21,8 @@ const tar = require('tar');
 const puppeteer = require('puppeteer');
 const zip = require('adm-zip');
 
-const now = new Date().toISOString();
+const now = new Date().toISOString(); // now is a string because it is used to compare to strings in the registry
+const weekAgo = new Date(new Date().setDate(new Date().getDate()-7)); // weekAgo is a date because it is used in date calculations
 const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
@@ -216,7 +217,7 @@ const driverFuncs = {
         logger.warn('tar !',message);
       });
       stream.on('entry',function(entry){
-        logger.log('tar x',entry.header.path);
+        if (md.verbose) logger.log('tar x',entry.header.path);
       });
       await new Promise(fulfill => stream.on('finish', fulfill));
       const fileArr = await rf(`./metadata/${provider}.cache/`, { filter: md.glob, readContents: false, filenameFormat: rf.RELATIVE });
@@ -225,7 +226,13 @@ const driverFuncs = {
         const fileUrl = `https://raw.githubusercontent.com/${md.org}/${md.repo}/${md.branch}/${file}`;
         // TODO way to extract service can differ between providers
         let service = path.basename(file,path.extname(file));
-        service = service.split('-v')[0];
+        if (md.pop || md.shift) {
+          const components = file.split('/');
+          if (md.shift) for (let i=0;i<md.shift;i++) { components.shift(md.shift) };
+          if (md.pop) for (let i=0;i<md.pop;i++) { components.pop(md.pop) };
+          service = components.join('/');
+        }
+        service = service.split('-v')[0]; // FIXME hardcoded
         if (file.indexOf('deref')<0) { // FIXME hardcoded
           count++;
           leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
@@ -528,6 +535,7 @@ module.exports = {
   sha256,
   fail,
   now,
+  weekAgo,
   loadMetadata,
   saveMetadata,
   registerDriver,
