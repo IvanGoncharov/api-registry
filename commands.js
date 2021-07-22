@@ -51,7 +51,6 @@ const logoCache = path.resolve('.','metadata','logo.cache');
 const mainCache = path.resolve('.','metadata','main.cache');
 
 const oasDefaultVersion = '3.0.0';
-const weekAgo = new Date(new Date().setDate(new Date().getDate()-7));
 
 const liquidEngine = new liquid.Engine();
 
@@ -61,6 +60,8 @@ let oasCache = {};
 const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchors: true, laxurls: true, laxDefaults: true, laxScopes: false, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+const defaultVersion = '1.0.0';
+
 let htmlTemplate;
 let argv = {};
 let iteration = 0;
@@ -195,7 +196,7 @@ async function validateObj(o,s,candidate,source) {
       // TODO other formats
     }
     if (o.info && typeof o.info.version !== 'string') {
-      o.info.version = (o.info.version || '1.0.0').toString();
+      o.info.version = (o.info.version || defaultVersion).toString();
     }
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
@@ -420,6 +421,10 @@ const commands = {
     else {
       ng.logger.log();
     }
+  },
+  zap: async function(candidate) {
+    ng.logger.log(ng.colour.red+'␡'+ng.colour.normal);
+    delete candidate.parent[candidate.version];
   },
   endpoints: async function(candidate) {
     try {
@@ -685,6 +690,8 @@ const commands = {
             catch (ex) {}
             ng.logger.prepend(colour+'📷 '+ng.colour.normal);
           }
+          if (candidate.gp.patch && candidate.gp.patch.info && candidate.gp.patch.info['x-logo']) gotLogo = true;
+          if (candidate.parent.patch && candidate.parent.patch.info && candidate.parent.patch.info['x-logo']) gotLogo = true;
           if (!gotLogo && provider.indexOf('.local') < 0) {
             await getFavicon(candidate);
           }
@@ -742,8 +749,16 @@ const commands = {
             candidate.md.openapi = o.openapi;
           }
           if (o.info && (o.info.version === '' || o.info.version === 'version')) {
-            o.info.version = '1.0.0';
+            o.info.version = defaultVersion;
           }
+
+          candidate.md.endpoints = countEndpoints(o);
+          if (candidate.md.endpoints === 0) {
+            ng.logger.warn('Not writing API with 0 endpoints');
+            return false;
+          }
+
+          // this is where we commit to updating the metadata and writing the API definition
           candidate.version = ng.cleanseVersion(o.info.version);
           metadata[provider].apis[service][candidate.version] = candidate.md;
 
@@ -765,7 +780,6 @@ const commands = {
           }
           o.info['x-origin'].push(candidate.md.source);
 
-          o = deepmerge(o,candidate.gp.patch||{}); // TODO FIXME check these two lines
           const patch = ng.Tree(candidate.parent.patch);
 
           if (argv.categories) {
@@ -783,10 +797,10 @@ const commands = {
           if (Object.keys(patch).length) {
             candidate.parent.patch = patch;
           }
+          o = deepmerge(o,candidate.gp.patch||{});
 
           const content = ng.yamlStringify(ng.sortJson(o));
           candidate.md.hash = ng.sha256(content);
-          candidate.md.endpoints = countEndpoints(o);
           fs.writeFileSync(filename,content,'utf8');
           newCandidates.push(candidate);
           ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
@@ -829,18 +843,20 @@ const commands = {
           }
 
           if (o.info && (o.info.version === '')) {
-            o.info.version = '1.0.0';
+            o.info.version = defaultVersion;
           }
 
           let openapiVer = (o.openapi ? o.openapi : o.swagger);
-          if ((o.info && (o.info.version !== candidate.version)) || (openapiVer !== candidate.md.openapi)) {
-            ng.logger.log('  Updated to',o.info.version,'in OpenAPI',openapiVer);
-            if (o.info.version !== candidate.version) {
-              candidate.parent[o.info.version] = candidate.parent[candidate.version];
+          const newVersion = o.info ? ng.cleanseVersion(o.info.version) : defaultVersion;
+          if ((o.info && (newVersion !== candidate.version)) || (openapiVer !== candidate.md.openapi)) {
+            ng.logger.log('  Updated to',newVersion,'in OpenAPI',openapiVer);
+            if (newVersion !== candidate.version) {
+              candidate.parent[newVersion] = candidate.parent[candidate.version];
               delete candidate.parent[candidate.version];
+              // candidate.version remains the old version
             }
             const ofname = candidate.md.filename;
-            candidate.md.filename = candidate.md.filename.replace('/'+candidate.version+'/','/'+ng.cleanseVersion(o.info.version)+'/');
+            candidate.md.filename = candidate.md.filename.replace('/'+candidate.version+'/','/'+newVersion+'/');
             if (o.openapi) {
               candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
               candidate.md.name = 'openapi.yaml';
@@ -972,7 +988,7 @@ function rssFeed(data,updated) {
         i.guid = {};
         i.guid["@isPermaLink"] = 'false';
         i.guid[""] = api;
-        i.pubDate = new Date((updated ? p.updated : p.added)||weekAgo).toUTCString();
+        i.pubDate = new Date((updated ? p.updated : p.added)).toUTCString();
 
         if (p.info["x-logo"]) {
           i.enclosure = {};
@@ -996,7 +1012,7 @@ function rssFeed(data,updated) {
 }
 
 function getApiUrl(candidate, ext) {
-  let result = 'https://api.apis.guru/v2/specs/'+candidate.provider;
+  let result = 'https://api.apis.guru/v2/specs/'+candidate.provider; // FIXME hardcoded
   if (candidate.service) result += '/' + candidate.service;
   result += '/' + candidate.version + '/' + ((candidate.md.name||'').replace('.yaml','')) + ext;
   return result;
@@ -1075,8 +1091,8 @@ const wrapUp = {
       }
       if (candidate.md.valid === false) invalid++;
       if (candidate.md.unofficial) unofficial++;
-      if (new Date(candidate.md.added) >= weekAgo) added++;
-      if (new Date(candidate.md.updated) >= weekAgo) updated++;
+      if (new Date(candidate.md.added) >= ng.weekAgo) added++;
+      if (new Date(candidate.md.updated) >= ng.weekAgo) updated++;
       if (candidate.md.statusCode) {
         const range = candidate.md.statusCode.toString().substr(0,1);
         if ((range === '4') || (range === '5')) {
