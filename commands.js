@@ -141,6 +141,7 @@ async function getFavicon(candidate) {
       candidate.parent.patch = ng.Tree(candidate.parent.patch); // doesn't create Trees recursively from init
       candidate.parent.patch.info = ng.Tree(candidate.parent.patch.info);
       candidate.parent.patch.info['x-logo'].url = icon;
+      return icon;
     }
   }
   catch (ex) {
@@ -693,7 +694,11 @@ const commands = {
           if (candidate.gp.patch && candidate.gp.patch.info && candidate.gp.patch.info['x-logo']) gotLogo = true;
           if (candidate.parent.patch && candidate.parent.patch.info && candidate.parent.patch.info['x-logo']) gotLogo = true;
           if (!gotLogo && provider.indexOf('.local') < 0) {
-            await getFavicon(candidate);
+            const icon = await getFavicon(candidate);
+            if (icon) {
+              gotLogo = true;
+              if (!o.info['x-logo']) o.info['x-logo'] = { url: icon };
+            }
           }
 
           if (argv.desclang) {
