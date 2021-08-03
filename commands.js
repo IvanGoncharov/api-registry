@@ -494,8 +494,13 @@ const commands = {
     }
     const logoExt = candidate.gp.logoExt||candidate.parent.logoExt||candidate.md.logoExt;
     if (logoExt) {
-      logoName += logoExt;
-      logoFull += logoExt;
+      try {
+        logoName += logoExt;
+        logoFull += logoExt;
+      }
+      catch (ex) {
+        console.warn('bug',ex.message,typeof logoName,typeof logoFull,typeof logoExt);
+      }
     }
 
     let colour = ng.colour.green;
