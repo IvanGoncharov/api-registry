@@ -492,15 +492,10 @@ const commands = {
       logoName = logoName.substr(0,logoName.length-1);
       logoFull = logoFull.substr(0,logoFull.length-1);
     }
-    const logoExt = candidate.gp.logoExt||candidate.parent.logoExt||candidate.md.logoExt;
-    if (logoExt) {
-      try {
-        logoName += logoExt;
-        logoFull += logoExt;
-      }
-      catch (ex) {
-        console.warn('bug',ex.message,typeof logoName,typeof logoFull,typeof logoExt);
-      }
+    const logoExt = candidate.md.logoExt||candidate.parent.logoExt||candidate.gp.logoExt;
+    if (typeof logoExt === 'string') { // may be being set to {} by a Tree
+      logoName += logoExt;
+      logoFull += logoExt;
     }
 
     let colour = ng.colour.green;
