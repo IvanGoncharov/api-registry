@@ -97,6 +97,10 @@ function slowCommand(command) {
 }
 
 const driverFuncs = {
+
+  // TODO add swaggerhub driver, using endpoint
+  // https://api.swaggerhub.com/apis/{owner}/{api}/settings/default
+
   nop: async function(provider,md) {
     // nop
     return true;
