@@ -599,6 +599,7 @@ const commands = {
     const diff = Math.round(Math.abs((new Date(ng.now) - new Date(candidate.md.updated)) / dayMs));
     if (diff <= 1.1) {
       try {
+        runGC(false);
         const s = fs.readFileSync(candidate.md.filename,'utf8');
         const o = ng.yamlParse(s);
         const valid = await validateObj(o,s,candidate,candidate.md.filename); // can call ng.fail()
