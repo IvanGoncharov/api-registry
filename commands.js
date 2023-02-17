@@ -149,6 +149,19 @@ async function getFavicon(candidate) {
   }
 }
 
+async function optionallyAutoUpgrade(o, candidate) {
+  if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
+    ng.logger.prepend('C');
+    if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
+    await s2o.convertObj(o, valOpt);
+    return valOpt.openapi;
+  }
+  else {
+    // TODO other formats
+  }
+  return o;
+}
+
 async function validateObj(o,s,candidate,source) {
   valOpt.text = s;
   valOpt.targetVersion = oasDefaultVersion;
@@ -187,15 +200,7 @@ async function validateObj(o,s,candidate,source) {
         o.servers = [ { url: `https://${argv.providerKey}` } ];
       }
     }
-    if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
-      ng.logger.prepend('C');
-      if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
-      await s2o.convertObj(o, valOpt);
-      o = valOpt.openapi; // for tests below, we extract it from options outside this func
-    }
-    else {
-      // TODO other formats
-    }
+    o = await optionallyAutoUpgrade(o, candidate);
     if (o.info && typeof o.info.version !== 'string') {
       o.info.version = (o.info.version || defaultVersion).toString();
     }
@@ -224,7 +229,7 @@ async function validateObj(o,s,candidate,source) {
   const oValid = candidate.md.valid;
   candidate.md.valid = result.valid;
   if (oValid && !result.valid) {
-    slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped from valid to invalid`);
+    slack(`API Registry: ${candidate.provider} ${candidate.service} ${candidate.version} just flipped from valid to invalid`);
   }
   return result.valid;
 }
@@ -407,10 +412,12 @@ const commands = {
   },
   rewrite: async function(candidate) {
     let s = fs.readFileSync(candidate.md.filename,'utf8');
-    const o = ng.yamlParse(s);
+    let o = ng.yamlParse(s);
     if (o.info) {
       o.info['x-preferred'] = candidate.md.preferred;
     }
+    o = await optionallyAutoUpgrade(o, candidate);
+    // FIXME doesn't update candidate.md.filename or perform mv
     fs.writeFileSync(candidate.md.filename,ng.yamlStringify(o),'utf8');
     ng.logger.log('rw');
   },
@@ -901,6 +908,8 @@ const commands = {
             }
           }
 
+          delete o.source; // FIXME don't know where this is coming from, a Tree?
+
           const content = ng.yamlStringify(ng.sortJson(o));
           fs.writeFileSync(candidate.md.filename,content,'utf8');
           const newHash = ng.sha256(content);
@@ -925,7 +934,7 @@ const commands = {
       else { // if not status 200 OK
         if (result.response.status !== candidate.md.statusCode) {
           candidate.md.statusCode = result.response.status;
-          slack(`API Registry: ${candidate.provider} ${candidate.service} just flipped to status ${result.response.status}`);
+          slack(`API Registry: ${candidate.provider} ${candidate.service} ${candidate.version} just flipped to status ${result.response.status}`);
         }
         if (candidate.md.preferred === true) {
           // can't be preferred if no longer available
@@ -1066,7 +1075,6 @@ const startUp = {
 const wrapUp = {
   deploy: async function(candidates) {
 
-
     let totalEndpoints = 0;
     let unreachable = 0;
     let invalid = 0;
@@ -1151,14 +1159,16 @@ const wrapUp = {
     fs.writeFileSync(path.resolve('.','deploy','v2','added.rss'),rssFeed(list,false),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','.nojekyll'),'','utf8');
     try {
+      const cname = fs.readFileSync(path.resolve('.','metadata','CNAME'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','CNAME'),cname,'utf8');
       const indexHtml = fs.readFileSync(path.resolve('.','metadata','index.html'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','index.html'),indexHtml,'utf8');
       const chartHtml = fs.readFileSync(path.resolve('.','metadata','charts.html'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','charts.html'),chartHtml,'utf8');
       const ourAPI = fs.readFileSync(path.resolve('.','metadata','openapi.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','openapi.yaml'),ourAPI,'utf8');
-      const cname = fs.readFileSync(path.resolve('.','metadata','CNAME'),'utf8');
-      fs.writeFileSync(path.resolve('.','deploy','CNAME'),cname,'utf8');
+      const categories = fs.readFileSync(path.resolve('.','metadata','categories.yaml'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','v2','categories.yaml'),categories,'utf8');
     }
     catch (ex) {
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
