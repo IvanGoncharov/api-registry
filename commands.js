@@ -201,10 +201,12 @@ async function validateObj(o,s,candidate,source) {
       }
     }
     o = await optionallyAutoUpgrade(o, candidate);
-    if (o.info && typeof o.info.version !== 'string') {
-      o.info.version = (o.info.version || defaultVersion).toString();
+    if (o.info) {
+      if (typeof o.info.version !== 'string') {
+        o.info.version = (o.info.version || defaultVersion).toString();
+      }
+      if (o.info.version.endsWith('.')) o.info.version = o.info.version.substring(0, o.info.version.length -1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
     }
-    if (o.info.version.endsWith('.')) o.info.version = o.info.version.substring(0, o.info.version.length -1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
       await validator.validate(o, valOpt);
@@ -336,6 +338,7 @@ function countEndpoints(o) {
 function runGC(snapshot) {
   iteration++;
   if (iteration % 100 === 0) {
+    ng.logger.prepend('gc');
     if (global.gc) global.gc();
     if (snapshot) saveHeapSnapshot();
   }
@@ -645,7 +648,7 @@ const commands = {
         if (result.response.url) {
           u = result.response.url;
         }
-        const candidate = { md: { source: { url: u }, valid: false } };
+        const candidate = { md: { source: { url: u }, valid: false, autoUpgrade: argv.autoUpgrade } };
         let o = await getObjFromText(result.text, candidate);
         const org = o;
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
