@@ -204,7 +204,7 @@ async function validateObj(o,s,candidate,source) {
     if (o.info && typeof o.info.version !== 'string') {
       o.info.version = (o.info.version || defaultVersion).toString();
     }
-    if (o.info.version.endsWith('.')) o.info.version = o.info.version.substring(0, o.info.version.length -1); // windows can't check these out #974
+    if (o.info.version.endsWith('.')) o.info.version = o.info.version.substring(0, o.info.version.length -1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
     ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
       await validator.validate(o, valOpt);
