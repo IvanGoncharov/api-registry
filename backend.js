@@ -202,7 +202,7 @@ const driverFuncs = {
     const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const discovery = await res.json();
     for (let item of discovery.items) {
-      leads[item.discoveryRestUrl] = { service: item.name };
+      leads[item.discoveryRestUrl] = { service: item.name, preferred: item.preferred };
     }
     return true;
   },
@@ -468,7 +468,7 @@ async function runDrivers(argv) {
   for (let driver of drivers.keys()) {
     const providers = drivers.get(driver);
     for (let provider of providers.keys()) {
-      if (!argv.rriver || driver === argv.driver) {
+      if (!argv.driver || driver === argv.driver) {
         logger.log('Running driver',driver,'for',provider);
         await driverFuncs[driver](provider,providers.get(provider));
       }
@@ -509,11 +509,18 @@ function getCandidates(argv) {
 }
 
 function trimLeads(candidates) {
+
+// if a lead already exists in candidates, remove it, taking any file or
+// preferred property into account
+
   if (Object.keys(leads).length) {
     for (let candidate of candidates) {
       if (leads[candidate.md.source.url]) {
         if (leads[candidate.md.source.url].file) {
           candidate.md.cached = path.relative('.', leads[candidate.md.source.url].file);
+        }
+        if (typeof leads[candidate.md.source.url].preferred == 'boolean') {
+          candidate.md.preferred = leads[candidate.md.source.url].preferred;
         }
         delete leads[candidate.md.source.url];
       }
