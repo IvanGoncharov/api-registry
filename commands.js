@@ -1069,6 +1069,10 @@ const startUp = {
     htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','redoc.html'),'utf8'));
     return candidates;
   },
+  ci: async function(candidates) {
+    resOpt.resolve = false; // should already have been done
+    valOpt.repair = false; // should already have been done
+  },
   validate: async function(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
