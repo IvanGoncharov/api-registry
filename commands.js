@@ -207,12 +207,13 @@ async function validateObj(o,s,candidate,source) {
       }
       if (o.info.version.endsWith('.')) o.info.version = o.info.version.substring(0, o.info.version.length -1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
     }
-    ng.logger.prepend('V');
     if (o.openapi) { // checking openapi property
+      ng.logger.prepend('V');
       await validator.validate(o, valOpt);
       result = valOpt;
     }
     else if (o.asyncapi) {
+      ng.logger.prepend('*');
       result.valid = true; // TODO validate asyncapi
     }
     if (!result.valid) throw new Error(`Validation failure, OpenAPI ${o.openapi||o.swagger||o.swaggerVersion}`);
