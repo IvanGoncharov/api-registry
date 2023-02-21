@@ -1266,9 +1266,10 @@ async function main(command, pathspec, options) {
   }
   let candidates = ng.getCandidates(argv);
   ng.logger.log(candidates.length,'candidates found');
+
+  const leads = ng.trimLeads(candidates); // do here for preferred flags
   await ng.runDrivers(argv);
 
-  const leads = ng.trimLeads(candidates);
   if ((command === 'update') && (Object.keys(leads).length)) {
     for (let u in leads) {
       argv.service = leads[u].service;

@@ -510,8 +510,8 @@ function getCandidates(argv) {
 
 function trimLeads(candidates) {
 
-// if a lead already exists in candidates, remove it, taking any file or
-// preferred property into account
+// if a lead already exists in candidates by url, remove it from leads, but copy
+// up any file or preferred property
 
   if (Object.keys(leads).length) {
     for (let candidate of candidates) {
