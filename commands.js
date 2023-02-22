@@ -350,6 +350,10 @@ const commands = {
     ng.logger.log('nop');
     return true;
   },
+  list: async function(candidate) {
+    ng.logger.log('nop');
+    return true;
+  },
   populate: async function(candidate) {
     ng.logger.log('pop');
     return true;
@@ -1122,14 +1126,17 @@ const wrapUp = {
           unreachable++;
         }
       }
-      let key = candidate.provider;
 
+      let key = candidate.provider;
       if (!providerCount[key]) providerCount[key] = 0;
       providerCount[key]++;
-
       if (candidate.service) key += ':'+candidate.service;
+
       const cVersion = ng.cleanseVersion(candidate.version);
-      if (!list.key) list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
+
+      if (!list[key]) {
+        list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
+      }
       list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated||candidate.md.added, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
       if (candidate.md.preferred) list[key].preferred = cVersion;
     }
@@ -1228,6 +1235,7 @@ const wrapUp = {
   }
 };
 wrapUp.checkpref = wrapUp.update;
+wrapUp.list = wrapUp.deploy;
 
 function analyseOpt(options) { // show size of each bucket in oas-kit options
   let result = {};

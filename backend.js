@@ -392,14 +392,13 @@ async function gather(pathspec, command, argv) {
   apis = {};
   if (!slowCommand(command)) return apis;
   logger.log('Gathering...');
-  let fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
+  const fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
       const obj = yamlParse(content);
       const hash = sha256(content);
       if (obj) {
         apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
       }
-      const fdir = path.dirname(filename);
     }
   });
   return apis;
@@ -407,7 +406,7 @@ async function gather(pathspec, command, argv) {
 
 function populateMetadata(apis, pathspec, argv) {
 
-  if (Object.keys(apis).length === 0) {
+  if (Object.keys(apis).length === 0) { // slowCommands only?
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
         for (let version in metadata[provider].apis[service]) {
