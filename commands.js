@@ -151,7 +151,7 @@ async function getFavicon(candidate) {
 
 async function optionallyAutoUpgrade(o, candidate) {
   if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
-    ng.logger.prepend('C');
+    ng.logger.prepend('U');
     if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
     await s2o.convertObj(o, valOpt);
     return valOpt.openapi;
@@ -626,7 +626,6 @@ const commands = {
       if (result.response.ok) {
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate);
-        const org = o;
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valOpt.openapi) o = valOpt.openapi;
         let ou = getServer(o, u);
@@ -1076,7 +1075,7 @@ const startUp = {
   validate: async function(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
-    return candidates.filter(function(e,i,a){
+    return candidates.filter(function(e,i,a) {
       return (e.provider !== 'azure.com'); // temp FIXME azure services
     });
   }
@@ -1304,6 +1303,7 @@ async function main(command, pathspec, options) {
       oldProvider = candidate.provider;
     }
     ng.logger.prepend(candidate.provider+' '+candidate.driver+' '+(candidate.service||'-')+' '+candidate.version+' ');
+    valOpt.patches = 0;
     await commands[command](candidate);
 
     //let voa = analyseOpt(valOpt);
