@@ -1071,6 +1071,7 @@ const startUp = {
   ci: async function(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
+    return candidates;
   },
   validate: async function(candidates) {
     resOpt.resolve = false; // should already have been done
