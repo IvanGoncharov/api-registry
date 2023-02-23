@@ -71,6 +71,10 @@ const template = function(templateString, templateVars) {
   return new Function("return `"+templateString +"`;").call(templateVars);
 }
 
+function majorMinor(version) {
+  return `${semver.major(version)}.${semver.minor(version)}`;
+}
+
 async function slack(text) {
   if (process.env.SLACK_ALERT_URL) {
     await fetch(process.env.SLACK_ALERT_URL, {
@@ -150,7 +154,8 @@ async function getFavicon(candidate) {
 }
 
 async function optionallyAutoUpgrade(o, candidate) {
-  if ((o.swagger && o.swagger == '2.0') || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
+  const version = majorMinor(o.openapi || o.swagger);
+  if ((version !== majorMinor(oasDefaultVersion)) || (candidate.md.autoUpgrade && candidate.md.autoUpgrade !== oasDefaultVersion)) {
     ng.logger.prepend('U');
     if (candidate.md.autoUpgrade) valOpt.targetVersion = candidate.md.autoUpgrade;
     await s2o.convertObj(o, valOpt);
@@ -731,7 +736,7 @@ const commands = {
           if (org.openapi) {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'openapi';
-            candidate.md.source.version = semver.major(org.openapi)+'.'+semver.minor(org.openapi);
+            candidate.md.source.version = majorMinor(org.openapi);
             candidate.md.openapi = org.openapi;
           }
           else if (org.swagger) {
@@ -748,7 +753,7 @@ const commands = {
           else if (org.asyncapi) {
             candidate.md.name = 'asyncapi.yaml';
             candidate.md.source.format = 'asyncapi';
-            candidate.md.source.version = semver.major(org.asyncapi)+'.'+semver.minor(org.asyncapi);
+            candidate.md.source.version = majorMinor(org.asyncapi);
             candidate.md.asyncapi = org.asyncapi;
           }
           else if (org.discoveryVersion) {
@@ -824,7 +829,7 @@ const commands = {
           candidate.md.hash = ng.sha256(content);
           fs.writeFileSync(filename,content,'utf8');
           newCandidates.push(candidate);
-          ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+          ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,'fixes',candidate.md.fixes,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
       else {
@@ -882,7 +887,7 @@ const commands = {
               candidate.md.filename = candidate.md.filename.replace('swagger.yaml','openapi.yaml');
               candidate.md.name = 'openapi.yaml';
               candidate.md.source.format = 'openapi';
-              candidate.md.source.version = semver.major(o.openapi)+'.'+semver.minor(o.openapi);
+              candidate.md.source.version = majorMinor(o.openapi);
             }
             const pathname = path.dirname(candidate.md.filename);
             mkdirp.sync(pathname);
