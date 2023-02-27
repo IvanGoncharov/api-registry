@@ -346,7 +346,7 @@ function saveMetadata(command) {
   if (process.exitCode === 99) process.exitCode = 0;
   if (metadataConsistent) return true;
   logger.log('Saving metadata...');
-  if (command === 'add') {
+  if (command === 'sort') {
     metadata = sortobject(metadata);
   }
   for (let provider in metadata) {
