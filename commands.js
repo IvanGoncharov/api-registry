@@ -10,7 +10,7 @@ const https = require('https');
 const path = require('path');
 const url = require('url');
 const util = require('util');
-const v8 = require('v8');
+const v8 = process.release.name === 'node' ? require('v8') : undefined;
 
 const deepmerge = require('deepmerge');
 const fetch = require('fetch-filecache-for-crawling');
@@ -72,6 +72,7 @@ const template = function(templateString, templateVars) {
 }
 
 function majorMinor(version) {
+  if (version === '2.0') version = '2.0.0';
   return `${semver.major(version)}.${semver.minor(version)}`;
 }
 
@@ -87,11 +88,13 @@ async function slack(text) {
 }
 
 function saveHeapSnapshot() {
-  const snapshotStream = v8.getHeapSnapshot();
-  // filename must end with `.heapsnapshot`, otherwise Chrome DevTools won't open it.
-  const fileName = `./${Date.now()}.heapsnapshot`;
-  const fileStream = fs.createWriteStream(fileName);
-  snapshotStream.pipe(fileStream);
+  if (v8) {
+    const snapshotStream = v8.getHeapSnapshot();
+    // filename must end with `.heapsnapshot`, otherwise Chrome DevTools won't open it.
+    const fileName = `./${Date.now()}.heapsnapshot`;
+    const fileStream = fs.createWriteStream(fileName);
+    snapshotStream.pipe(fileStream);
+  }
 }
 
 function getServer(o, u) {
@@ -356,6 +359,10 @@ const commands = {
     return true;
   },
   list: async function(candidate) {
+    ng.logger.log('nop');
+    return true;
+  },
+  sort: async function(candidate) {
     ng.logger.log('nop');
     return true;
   },
