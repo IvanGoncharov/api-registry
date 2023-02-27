@@ -1289,11 +1289,11 @@ async function main(command, pathspec, options) {
     }
     ng.populateMetadata(apis, pathspec, argv);
   }
-  let candidates = ng.getCandidates(argv);
+  let candidates = ng.getCandidates(argv, pathspec);
   ng.logger.log(candidates.length,'candidates found');
 
-  const leads = ng.trimLeads(candidates); // do here for preferred flags
   await ng.runDrivers(argv);
+  const leads = ng.trimLeads(candidates); // do here for preferred flags
 
   if ((command === 'update') && (Object.keys(leads).length)) {
     for (let u in leads) {
@@ -1343,6 +1343,7 @@ async function main(command, pathspec, options) {
 
 module.exports = {
   commands,
+  defaultPathSpec: ng.defaultPathSpec,
   registerDriver: ng.registerDriver,
   registerCommand,
   main

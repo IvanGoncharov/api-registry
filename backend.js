@@ -27,6 +27,7 @@ const drivers = new Map(); // map of Maps. drivers -> provider:metadata[p]
 const colour = process.env.NODE_DISABLE_COLORS ?
     { red: '', yellow: '', green: '', normal: '', clear: '' } :
     { red: '\x1b[31m', yellow: '\x1b[33;1m', green: '\x1b[32m', normal: '\x1b[0m', clear: '\r\x1b[1M' };
+const defaultPathSpec = path.relative('.','APIs');
 
 // cacheFolder constants
 const indexCache = path.resolve('.','metadata','index.cache');
@@ -90,10 +91,6 @@ function fail(candidate,status,err,context) {
   failures[candidate.provider][candidate.service][candidate.version] =
     { status, error:(err ? err.message : ''), context };
   process.exitCode = 1;
-}
-
-function slowCommand(command) {
-  return (['populate','deploy'].indexOf(command)>=0);
 }
 
 const driverFuncs = {
@@ -390,8 +387,8 @@ function saveMetadata(command) {
 
 async function gather(pathspec, command, argv) {
   apis = {};
-  if (!slowCommand(command)) return apis;
-  logger.log('Gathering...');
+  if (pathspec === defaultPathSpec) return apis;
+  logger.log(`Gathering from ${pathspec}`);
   const fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
     if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
       const obj = yamlParse(content);
@@ -406,7 +403,7 @@ async function gather(pathspec, command, argv) {
 
 function populateMetadata(apis, pathspec, argv) {
 
-  if (Object.keys(apis).length === 0) { // slowCommands only?
+  if (Object.keys(apis).length === 0) {
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
         for (let version in metadata[provider].apis[service]) {
@@ -476,8 +473,8 @@ async function runDrivers(argv) {
   return drivers;
 }
 
-function getCandidates(argv) {
-  const returnAll = (argv.driver === 'none' || argv.skipDrivers);
+function getCandidates(argv, pathspec) {
+  const returnAll = (argv.driver === 'none' || pathspec === defaultPathSpec);
   const driver = (returnAll ? undefined : argv.driver);
   const result = [];
 
