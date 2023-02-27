@@ -905,6 +905,8 @@ const commands = {
 
           // TODO set converter in origin if necessary
 
+          // FIXME clean patches of erroneous source.url properties created
+          // by treating a patch 'version' in the metadata as if it were an API
           o = deepmerge(o,candidate.gp.patch||{});
           o = deepmerge(o,candidate.parent.patch||{});
 
@@ -928,8 +930,6 @@ const commands = {
               if (!existing) o.servers.unshift({ url: 'http://'+candidate.provider });
             }
           }
-
-          delete o.source; // FIXME don't know where this is coming from, a Tree?
 
           const content = ng.yamlStringify(ng.sortJson(o));
           fs.writeFileSync(candidate.md.filename,content,'utf8');
