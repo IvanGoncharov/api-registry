@@ -387,23 +387,28 @@ function saveMetadata(command) {
 
 async function gather(pathspec, command, argv) {
   apis = {};
-  if (pathspec === defaultPathSpec) return apis;
+  if (!pathspec || pathspec === defaultPathSpec) return apis;
   logger.log(`Gathering from ${pathspec}`);
-  const fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
-    if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
-      const obj = yamlParse(content);
-      const hash = sha256(content);
-      if (obj) {
-        apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
+  try {
+    const fileArr = await rf(pathspec, { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH }, function(err, filename, content) {
+      if ((filename.indexOf('openapi.yaml')>=0) || (filename.indexOf('swagger.yaml')>=0)) {
+        const obj = yamlParse(content);
+        const hash = sha256(content);
+        if (obj) {
+          apis[filename] = { swagger: obj.swagger, openapi: obj.openapi, info: obj.info, hash: hash };
+        }
       }
-    }
-  });
+    });
+  }
+  catch (ex) {
+    logger.warn(`Pathspec not found ${pathspec}`);
+  }
   return apis;
 }
 
 function populateMetadata(apis, pathspec, argv) {
 
-  if (Object.keys(apis).length === 0) {
+  if (Object.keys(apis).length === 0) { // if fast processing all APIs
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
         for (let version in metadata[provider].apis[service]) {
