@@ -27,7 +27,6 @@ if (!command) {
   process.exit(0);
 }
 let pathspec = argv._[3];
-if (!pathspec) pathspec = cmd.defaultPathSpec;
 
 process.on('exit', function() {
   console.log('Exiting with',process.exitCode);
