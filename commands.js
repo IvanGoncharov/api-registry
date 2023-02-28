@@ -506,10 +506,7 @@ const commands = {
       o = ng.yamlParse(s);
     }
     catch (ex) {
-      if (candidate.md.filename.indexOf('azure.com') >= 0) {
-        ng.warn(candidate,null,ex,'deploy'); // FIXME see issue 542
-      }
-      else {
+      if (candidate.md.filename.indexOf('azure.com') < 0) {
         ng.fail(candidate,null,ex,'deploy');
       }
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
