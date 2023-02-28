@@ -409,6 +409,7 @@ async function gather(pathspec, command, argv) {
 function populateMetadata(apis, pathspec, argv) {
 
   if (Object.keys(apis).length === 0) { // if fast processing all APIs
+    logger.log(`Default pathspec ${pathspec}`);
     for (let provider in metadata) {
       for (let service in metadata[provider].apis) {
         for (let version in metadata[provider].apis[service]) {
@@ -539,6 +540,7 @@ module.exports = {
   yamlStringify,
   Tree,
   colour,
+  defaultPathSpec,
   logger,
   sortJson,
   clone,
