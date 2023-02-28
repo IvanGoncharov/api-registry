@@ -347,7 +347,7 @@ function countEndpoints(o) {
 function runGC(snapshot) {
   iteration++;
   if (iteration % 100 === 0) {
-    ng.logger.prepend('gc');
+    ng.logger.prepend('🗑️');
     if (global.gc) global.gc();
     if (snapshot) saveHeapSnapshot();
   }
@@ -506,7 +506,12 @@ const commands = {
       o = ng.yamlParse(s);
     }
     catch (ex) {
-      ng.fail(candidate,null,ex,'deploy');
+      if (candidate.md.filename.indexOf('azure.com') >= 0) {
+        ng.warn(candidate,null,ex,'deploy'); // FIXME see issue 542
+      }
+      else {
+        ng.fail(candidate,null,ex,'deploy');
+      }
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
     }
     const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg';
