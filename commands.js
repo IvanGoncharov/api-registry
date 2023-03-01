@@ -585,12 +585,12 @@ const commands = {
 
       s = ng.yamlStringify(o);
       const j = JSON.stringify(o,null,2);
-      const filename = candidate.md.openapi.startsWith('3.') ? 'openapi.' : 'swagger.';
+      const filename = candidate.md.filename.split('/').pop().replace('.yaml','');
       let filepath = path.resolve('.','deploy','v2','specs');
       filepath = path.join(filepath,candidate.provider,candidate.service,candidate.version);
       await mkdirp(filepath);
-      fs.writeFileSync(path.join(filepath,filename+'yaml'),s,'utf8');
-      fs.writeFileSync(path.join(filepath,filename+'json'),j,'utf8');
+      fs.writeFileSync(path.join(filepath,filename+'.yaml'),s,'utf8');
+      fs.writeFileSync(path.join(filepath,filename+'.json'),j,'utf8');
       ng.logger.log(ng.colour.green+'✔'+ng.colour.normal);
       return true;
     }
