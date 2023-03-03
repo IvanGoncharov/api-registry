@@ -27,8 +27,6 @@ const liquid = require('liquid');
 const semver = require('semver');
 const google = require('google-discovery-to-swagger');
 const postman = require('postman2openapi');
-const apib2swagger = require('apib2swagger');
-const apiBlueprint = util.promisify(apib2swagger.convert);
 const postmanCT = require('postman-collection-transformer');
 const postman1 = util.promisify(postmanCT.convert);
 const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
@@ -65,6 +63,7 @@ const defaultVersion = '1.0.0';
 let htmlTemplate;
 let argv = {};
 let iteration = 0;
+let apib2swagger, apiBlueprint;
 
 const template = function(templateString, templateVars) {
   // use this. for replaceable parameters
@@ -174,6 +173,7 @@ async function validateObj(o,s,candidate,source) {
   valOpt.text = s;
   valOpt.targetVersion = oasDefaultVersion;
   let result = { valid: false };
+  if (!o) o = {};
   try {
     if (o.id && o.requests) {
       const options = { inputVersion: '1.0.0', outputVersion: '2.1.0', retainIds: true };
@@ -251,7 +251,7 @@ async function fix(candidate, o) {
 }
 
 async function retrieve(u, argv, slow) {
-  let response = { status: 599, ok: false };
+  let response = { status: 599, ok: false, headers: {} };
   let s;
   let ok;
 
@@ -306,8 +306,12 @@ async function retrieve(u, argv, slow) {
   return { response, text:s }
 }
 
-async function getObjFromText(text, candidate) {
+async function getObjFromText(text, candidate, ct) {
   if (text.startsWith('FORMAT: ')) {
+    if (!apiBlueprint) {
+       apib2swagger = require('apib2swagger');
+       apiBlueprint = util.promisify(apib2swagger.convert);
+    }
     const result = await apiBlueprint(text,{});
     candidate.md.autoUpgrade = oasDefaultVersion;
     return result.swagger;
@@ -319,7 +323,14 @@ async function getObjFromText(text, candidate) {
     }
     catch (ex) {
       ng.logger.warn('Falling back to lenient yaml...');
-      obj = yml.parse(text, { strict: false, loglevel: 'silent', prettyErrors: true });
+      try {
+        obj = yml.parse(text, { strict: false, loglevel: 'silent', prettyErrors: true });
+      }
+      catch (ex) {
+        ng.logger.warn('Failed to parse input as yaml or API Blueprint.');
+        if (ct) ng.logger.warn(`Content-Type: ${ct}`);
+        process.exitcode = 1;
+      }
     }
     return obj;
   }
@@ -642,8 +653,9 @@ const commands = {
     try {
       const result = await retrieve(u,argv);
       if (result.response.ok) {
+        const ct = result.response.headers.get('Content-Type');
         const candidate = { md: { source: { url: u }, valid: false } };
-        let o = await getObjFromText(result.text, candidate);
+        let o = await getObjFromText(result.text, candidate, ct);
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valOpt.openapi) o = valOpt.openapi;
         let ou = getServer(o, u);

@@ -233,7 +233,17 @@ const driverFuncs = {
           if (md.pop) for (let i=0;i<md.pop;i++) { components.pop(md.pop) };
           service = components.join('/');
         }
-        service = service.split('-v')[0]; // FIXME hardcoded
+        if (md.regex) {
+          const re = new RegExp(md.regex,'gm');
+          service.replace(re,function(match,group1){
+            service = group1;
+            return group1;
+          });
+          service = service.split(' ').join('-');
+        }
+        else if (md.split) {
+          service = service.split(md.split || '-v')[0];
+        }
         if (file.indexOf('deref')<0) { // FIXME hardcoded
           count++;
           leads[fileUrl] = { file: path.resolve('.','metadata',provider+'.cache',file), service, provider };
