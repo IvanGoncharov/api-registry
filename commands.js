@@ -329,7 +329,7 @@ async function getObjFromText(text, candidate, ct) {
       catch (ex) {
         ng.logger.warn('Failed to parse input as yaml or API Blueprint.');
         if (ct) ng.logger.warn(`Content-Type: ${ct}`);
-        process.exitcode = 1;
+        process.exitCode = 1;
       }
     }
     return obj;
@@ -663,11 +663,13 @@ const commands = {
       }
       else {
         ng.logger.warn(ng.colour.red,result.response.status,ng.colour.normal);
+        process.exitCode = 1;
       }
     }
     catch (ex) {
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
       if (argv.debug) ng.logger.warn(ex);
+      process.exitCode = 1;
     }
   },
   add: async function(u, metadata) {
