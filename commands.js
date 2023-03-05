@@ -13,7 +13,7 @@ const util = require('util');
 const v8 = process.release.name === 'node' ? require('v8') : undefined;
 
 const deepmerge = require('deepmerge');
-const fetch = require('fetch-filecache-for-crawling');
+const cfetch = require('fetch-filecache-for-crawling');
 const mkdirp = require('mkdirp');
 const pd = require('parse-domain');
 const s2o = require('swagger2openapi');
@@ -109,7 +109,7 @@ function getServer(o, u) {
       }
       o.servers.unshift({ url: url });
     }
-    assert.ok(o.servers[0],'Must have determined servers by now');
+    assert.ok(o.servers[0],'Could not determine servers information');
     let ok = true;
     if (o.servers[0].url.indexOf('localhost')>=0) ok = false;
     if (o.servers[0].url.indexOf('githubusercontent')>=0) ok = false;
@@ -191,7 +191,7 @@ async function validateObj(o,s,candidate,source) {
       s = s.split('{{server}}').join(argv.host);
       s = s.split('{{baseURL}}').join(argv.host);
       s = s.split('{{url}}').join(argv.host);
-      o = JSON.parse(postman.transpile(s,'json'));
+      o = postman.transpile(o,'json');
       valOpt.openapi = o;
       valOpt.patches = 1; // force taking from valOpt.openapi
     }
@@ -228,7 +228,7 @@ async function validateObj(o,s,candidate,source) {
   }
   catch (ex) {
     ng.logger.log();
-    ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+    ng.logger.warn(ng.colour.red+(ex.message||'No exception message')+ng.colour.normal);
     if (argv.debug) ng.logger.warn(ex);
     let context;
     if (valOpt.context) {
@@ -543,7 +543,7 @@ const commands = {
     if (!fs.existsSync(logoFull)) { // if we have not deployed this logo yet
       let response;
       try {
-        const res = await fetch(origLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
+        const res = await cfetch(origLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
         const ct = res.headers.get('Content-Type')||'';
         if (!res.ok || ct.indexOf('image/')<0) {
@@ -658,6 +658,12 @@ const commands = {
         let o = await getObjFromText(result.text, candidate, ct);
         const valid = await validateObj(o,result.text,candidate,candidate.md.source.url);
         if (valOpt.openapi) o = valOpt.openapi;
+
+        candidate.md.endpoints = countEndpoints(o);
+        if (candidate.md.endpoints === 0) {
+          ng.logger.warn('Cannot add API with 0 endpoints');
+          process.exitCode = 1;
+        }
         let ou = getServer(o, u);
         ng.logger.log(getProvider(ou, u));
       }
@@ -804,6 +810,7 @@ const commands = {
           candidate.md.endpoints = countEndpoints(o);
           if (candidate.md.endpoints === 0) {
             ng.logger.warn('Not writing API with 0 endpoints');
+            process.exitCode = 1;
             return false;
           }
 
