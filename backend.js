@@ -395,7 +395,7 @@ function saveMetadata(command) {
   return result;
 }
 
-async function gather(pathspec, command, argv) {
+async function gather(command, pathspec, argv) {
   apis = {};
   if (!pathspec || pathspec === defaultPathSpec) return apis;
   logger.log(`Gathering from ${pathspec}`);
@@ -489,8 +489,8 @@ async function runDrivers(argv) {
   return drivers;
 }
 
-function getCandidates(argv, pathspec) {
-  const returnAll = (argv.driver === 'none' || pathspec === defaultPathSpec);
+function getCandidates(command, pathspec, argv) {
+  const returnAll = (argv.driver === 'none' || ((pathspec === defaultPathSpec) && (command !== 'update')));
   const driver = (returnAll ? undefined : argv.driver);
   const result = [];
 
