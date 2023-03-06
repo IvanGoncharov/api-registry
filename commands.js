@@ -573,7 +573,7 @@ const commands = {
         colour = ng.colour.red;
         ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
         if (argv.debug) ng.logger.warn(ex);
-        const res = await fetch(defaultLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
+        const res = await cfetch(defaultLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
       }
       if (response) {
@@ -1305,14 +1305,14 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
   }
 
   if (!argv.driver) {
-    const apis = await ng.gather(pathspec, command, argv);
+    const apis = await ng.gather(command, pathspec, argv);
     const len = Object.keys(apis).length;
     if (len) {
       ng.logger.log(len,'API files read');
     }
     ng.populateMetadata(apis, pathspec, argv);
   }
-  let candidates = ng.getCandidates(argv, pathspec);
+  let candidates = ng.getCandidates(command, pathspec, argv);
   ng.logger.log(candidates.length,'candidates found');
 
   await ng.runDrivers(argv);
