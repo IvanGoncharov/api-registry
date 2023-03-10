@@ -6,6 +6,6 @@
 
 ## Contributor License Agreement
 
-* [Individual CLA](./CLA.md)
-* [Entity CLA](./entity-CLA.md)
+* [Individual CLA](./CLA/CLA.md)
+* [Entity CLA](./CLA/entity-CLA.md)
 
