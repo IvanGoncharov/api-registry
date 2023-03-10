@@ -17,7 +17,7 @@
     "portal"
   ],
   "author": "Mike Ralphson",
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "dependencies": {
     "@astridhq/fetch-favicon": "0.0.4-rc.3",
     "adm-zip": "^0.5.5",
