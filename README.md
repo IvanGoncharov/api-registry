@@ -1,5 +1,9 @@
 # APIs.guru API Registry
 
+## Documentation 
+
+Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/openapi-directory/wiki/Development
+
 ## TODO
 
 * Consider moving metadata store from yaml to [Acebase](https://github.com/appy-one/acebase)
