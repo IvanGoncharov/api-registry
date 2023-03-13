@@ -2,7 +2,7 @@
 
 ## Documentation 
 
-Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/openapi-directory/wiki/Development
+Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/openapi-directory/wiki/Development) 
 
 ## TODO
 
