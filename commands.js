@@ -1009,6 +1009,20 @@ const commands = {
       return false;
     }
     return true;
+  },
+  remove: async function(candidate, metadata) {
+    const filename = candidate.md.filename;
+    ng.logger.log(`Removing ${filename}`);
+    try {
+      ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
+    }
+    catch (ex) {
+      ng.logger.warn(ex.message);
+    }
+    delete metadata[candidate.provider].apis[candidate.service][candidate.version];
+    if (Object.keys(candidate[candidate.provider].apis).length === 0) {
+      delete metadata[candidate.provider];
+    }
   }
 };
 
@@ -1348,7 +1362,7 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
     }
     ng.logger.prepend(candidate.provider+' '+candidate.driver+' '+(candidate.service||'-')+' '+candidate.version+' ');
     valOpt.patches = 0;
-    await commands[command](candidate);
+    await commands[command](candidate, metadata);
 
     //let voa = analyseOpt(valOpt);
     //fs.writeFileSync('./valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
