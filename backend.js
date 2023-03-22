@@ -342,7 +342,7 @@ function cleanseVersion(v) {
   return v.split('/').join('-').split('\\').join('-').split(':').join('').split('.*').join('');
 }
 
-function loadMetadata() {
+function loadMetadata(command) {
   const metaStr = fs.readFileSync(path.resolve('.','metadata','registry.yaml'),'utf8');
   metadata = yamlParse(metaStr);
   if (['ci','deploy'].indexOf(command) >= 0) {

@@ -1314,7 +1314,7 @@ function registerCommand(cmd) {
 async function main(command, pathspec = ng.defaultPathSpec, options) {
   process.exitCode = 99;
   argv = options; // set the global variable
-  const metadata = ng.loadMetadata();
+  const metadata = ng.loadMetadata(command);
 
   if ((command === 'add') || (command === 'check')) {
     await commands[command](pathspec, metadata);
