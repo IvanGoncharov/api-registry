@@ -278,7 +278,7 @@ async function retrieve(u, argv, slow) {
     const timeout = slow ? 15000 : 5000;
     const headers = { 'Accept': '*/*', 'Accept-Encoding': 'gzip,deflate' };
     if (argv.body) headers['Content-Type'] = 'application/json';
-    response = await fetch(u, { logToConsole: argv.verbose, timeout, agent:bobwAgent, cacheFolder: mainCache, refresh: 'default', method: (argv.method||'GET'), body: argv.body, headers });
+    response = await fetch(u, { logToConsole: argv.verbose, timeout, signal: AbortSignal.timeout(timeout), agent:bobwAgent, cacheFolder: mainCache, refresh: 'default', method: (argv.method||'GET'), body: argv.body, headers });
     if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
       ok = true;
     }
@@ -766,7 +766,7 @@ const commands = {
             candidate.md.name = 'openapi.yaml';
             candidate.md.source.format = 'openapi';
             candidate.md.source.version = majorMinor(org.openapi);
-            candidate.md.openapi = org.openapi;
+            candidate.md.openapi = o.openapi;
           }
           else if (org.swagger) {
             if (o.openapi) {
@@ -966,7 +966,10 @@ const commands = {
           if (valOpt.convWarn && valOpt.convWarn.length) {
             candidate.md.fixes += valOpt.convWarn.length;
           }
-          if (autoUpgrade) candidate.md.autoUpgrade = autoUpgrade;
+          if (autoUpgrade) {
+            candidate.md.autoUpgrade = autoUpgrade;
+            if (o.openapi || o.swagger) candiate.md.openapi = autoUpgrade;
+          }
         }
         else { // if not valid
           if (argv.save) {
@@ -1016,11 +1019,12 @@ const commands = {
     try {
       ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
     }
-    catch (ex) {
-      ng.logger.warn(ex.message);
-    }
+    catch (ex) {}
     delete metadata[candidate.provider].apis[candidate.service][candidate.version];
-    if (Object.keys(candidate[candidate.provider].apis).length === 0) {
+    if (Object.keys(metadata[candidate.provider].apis[candidate.service]).length === 0) {
+      delete metadata[candidate.provider].apis[candidate.service];
+    }
+    if (Object.keys(metadata[candidate.provider].apis).length === 0) {
       delete metadata[candidate.provider];
     }
   }

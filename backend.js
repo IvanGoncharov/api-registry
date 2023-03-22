@@ -345,6 +345,9 @@ function cleanseVersion(v) {
 function loadMetadata() {
   const metaStr = fs.readFileSync(path.resolve('.','metadata','registry.yaml'),'utf8');
   metadata = yamlParse(metaStr);
+  if (['ci','deploy'].indexOf(command) >= 0) {
+    metadata = sortobject(metadata);
+  }
   return metadata;
 }
 
