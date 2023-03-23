@@ -269,6 +269,9 @@ async function retrieve(u, argv, slow) {
     }
     else {
       ng.logger.warn(ng.colour.red,`Could not find ${u} in stored data`,ng.colour.normal);
+      argv.provider.data.find(function(e,i,a){
+        ng.logger.warn('Found',e.url);
+      })
       return { response: { ok: false, status: 404 } };
     }
   }
@@ -968,7 +971,7 @@ const commands = {
           }
           if (autoUpgrade) {
             candidate.md.autoUpgrade = autoUpgrade;
-            if (o.openapi || o.swagger) candiate.md.openapi = autoUpgrade;
+            if (o.openapi || o.swagger) candidate.md.openapi = autoUpgrade;
           }
         }
         else { // if not valid
