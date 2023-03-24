@@ -570,6 +570,7 @@ module.exports = {
   populateMetadata,
   runDrivers,
   getCandidates,
-  trimLeads
+  trimLeads,
+  numDrivers: Object.keys(driverFuncs).length
 };
 

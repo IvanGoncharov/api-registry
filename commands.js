@@ -465,10 +465,6 @@ const commands = {
       ng.logger.log();
     }
   },
-  zap: async function(candidate) {
-    ng.logger.log(ng.colour.red+'␡'+ng.colour.normal);
-    delete candidate.parent[candidate.version];
-  },
   endpoints: async function(candidate) {
     try {
       let s = fs.readFileSync(candidate.md.filename,'utf8');
@@ -1018,7 +1014,7 @@ const commands = {
   },
   remove: async function(candidate, metadata) {
     const filename = candidate.md.filename;
-    ng.logger.log(`Removing ${filename}`);
+    ng.logger.log(ng.colour.red+'␡'+ng.colour.normal);
     try {
       ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
     }
@@ -1109,7 +1105,9 @@ function badges(metrics) {
     { label: '✗ Invalid at source', name: 'invalid.svg', prop: 'invalid', color: (metrics.invalid === 0 ? 'green' : 'red') },
     { label: '🖧  Unreachable', name: 'unreachable.svg', prop: 'unreachable', color: (metrics.unreachable === 0 ? 'green' : 'red') },
     { label: '🐒 Fixes', name: 'fixes.svg', prop: 'fixes', color: 'lime' },
-    { label: '🔧 Fixed %', name: 'fixed_pct.svg', prop: 'fixedPct', color: 'orange' }
+    { label: '🔧 Fixed %', name: 'fixed_pct.svg', prop: 'fixedPct', color: 'orange' },
+    { label: '🏎️  Drivers', name: 'drivers.svg', prop: 'numDrivers', color: 'cyan' },
+    { label: '🏢 Providers', name: 'providers.svg', prop: 'numProviders', color: 'magenta' }
   ];
   for (let badge of badges) {
      const format = { label: badge.label, message: metrics[badge.prop].toString(), color: badge.color };
@@ -1197,6 +1195,7 @@ const wrapUp = {
       if (candidate.md.preferred) list[key].preferred = cVersion;
     }
 
+    const numProviders = Object.keys(providerCount).length;
     let others = 0;
     for (let provider in providerCount) {
       if (providerCount[provider] < 10) {
@@ -1222,7 +1221,9 @@ const wrapUp = {
       datasets,
       stars: ghStats.stargazers_count,
       issues: ghStats.open_issues_count,
-      thisWeek: { added, updated }
+      thisWeek: { added, updated },
+      numDrivers: ng.numDrivers,
+      numProviders
     };
     badges(metrics);
 
