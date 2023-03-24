@@ -531,7 +531,7 @@ const commands = {
     const patch = Object.assign({},candidate.parent.patch,candidate.gp.patch);
     if (argv.force || !patch || !patch.info || !patch.info['x-logo']) {
       candidate.gp.patch = new ng.Tree(candidate.gp.patch || {});
-      candidate.gp.patch.info['x-logo'] = logo;
+      candidate.gp.patch.info['x-logo'].url = logo;
     }
     return candidate;
   },
