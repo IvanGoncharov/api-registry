@@ -31,6 +31,7 @@ const postmanCT = require('postman-collection-transformer');
 const postman1 = util.promisify(postmanCT.convert);
 const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 const betterLookup = require('better-lookup').lookup;
+const cheerio = require('cheerio');
 
 const ng = require('./backend.js');
 
@@ -139,9 +140,36 @@ function getProvider(u, source) {
   return domain+(topLevelDomains ? '.'+topLevelDomains.join('.') : '');
 }
 
-async function getFavicon(candidate) {
+async function getSocial(candidate) {
+  const url = 'https://'+candidate.provider;
   try {
-    const icon = await fetchFavicon('https://'+candidate.provider);
+    const res = await fetch(url);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const meta = {};
+    $('meta').each(function() {
+      const name = $(this).attr('name') || $(this).attr('property');
+      const content = $(this).attr('content');
+      if (name && content) {
+        meta[name] = content;
+      }
+    });
+    if (meta['og:image']) {
+      return meta['og:image'];
+    } else if (meta['og:image:secure_url']) {
+      return meta['og:image:secure_url'];
+    } else if (meta['og:image:url']) {
+      return meta['og:image:url'];
+    }
+    else if (meta['twitter:image']) {
+      return meta['twitter:image'];
+    }
+  }
+  catch (ex) {
+    ng.logger.warn(ng.colour.red+'Fetch social',ex.message+ng.colour.normal);
+  }
+  try {
+    const icon = await fetchFavicon(url);
     if (typeof icon === 'string' && !icon.endsWith('/favicon.ico')) {
       ng.logger.log('📷',icon);
       candidate.parent.patch = ng.Tree(candidate.parent.patch); // doesn't create Trees recursively from init
@@ -497,8 +525,15 @@ const commands = {
     candidate.md.source = candidate.md.history.pop();
     ng.logger.log('cache');
   },
-  favicon: async function(candidate) {
-    return await getFavicon(candidate);
+  logo: async function(candidate) {
+    const logo = await getSocial(candidate);
+    ng.logger.log(logo);
+    const patch = Object.assign({},candidate.parent.patch,candidate.gp.patch);
+    if (argv.force || !patch || !patch.info || !patch.info['x-logo']) {
+      candidate.gp.patch = new ng.Tree(candidate.gp.patch || {});
+      candidate.gp.patch.info['x-logo'] = logo;
+    }
+    return candidate;
   },
   deploy: async function(candidate) {
     if (argv.dashboard) {
@@ -743,10 +778,10 @@ const commands = {
           if (candidate.gp.patch && candidate.gp.patch.info && candidate.gp.patch.info['x-logo']) gotLogo = true;
           if (candidate.parent.patch && candidate.parent.patch.info && candidate.parent.patch.info['x-logo']) gotLogo = true;
           if (!gotLogo && provider.indexOf('.local') < 0) {
-            const icon = await getFavicon(candidate);
-            if (icon) {
+            const logo = await getSocial(candidate);
+            if (logo) {
               gotLogo = true;
-              if (!o.info['x-logo']) o.info['x-logo'] = { url: icon };
+              if (!o.info['x-logo']) o.info['x-logo'] = { url: logo };
             }
           }
 
