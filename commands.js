@@ -304,7 +304,7 @@ async function retrieve(u, argv, slow) {
     }
   }
 
-  if (u.startsWith('http')) {
+  if (u.startsWith('http') || u.startsWith('blob')) {
     ng.logger.prepend('F');
     const timeout = slow ? 15000 : 5000;
     const headers = { 'Accept': '*/*', 'Accept-Encoding': 'gzip,deflate' };
@@ -893,7 +893,7 @@ const commands = {
           candidate.md.hash = ng.sha256(content);
           fs.writeFileSync(filename,content,'utf8');
           newCandidates.push(candidate);
-          ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,'fixes',candidate.md.fixes,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
+          ng.logger.log('Wrote new',provider,service||'-',candidate.version,'in OpenAPI',candidate.md.autoUpgrade||candidate.md.openapi,'fixes',candidate.md.fixes||0,valid ? ng.colour.green+'✔' : ng.colour.red+'✗',ng.colour.normal);
         }
       }
       else {
