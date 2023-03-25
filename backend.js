@@ -20,6 +20,7 @@ const yaml = require('yaml');
 const tar = require('tar');
 const puppeteer = require('puppeteer');
 const zip = require('adm-zip');
+const { Configuration, OpenAIApi } = require("openai");
 
 const now = new Date().toISOString(); // now is a string because it is used to compare to strings in the registry
 const weekAgo = new Date(new Date().setDate(new Date().getDate()-7)); // weekAgo is a date because it is used in date calculations
@@ -32,6 +33,11 @@ const defaultPathSpec = path.relative('.','APIs');
 // cacheFolder constants
 const indexCache = path.resolve('.','metadata','index.cache');
 const archiveCache = path.resolve('.','metadata','archive.cache');
+
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const openai = new OpenAIApi(configuration);
 
 let metadata = {};
 let metadataConsistent = false;
@@ -85,6 +91,22 @@ function exec(command) {
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
+}
+
+async function ai(prompt) {
+  let completion;
+  try {
+    completion = await openai.createCompletion({
+      model: "text-davinci-003",
+      max_tokens: 300,
+      prompt
+    });
+  }
+  catch (ex) {
+    logger.warn(colour.red+(ex.message||ex.response)+colour.normal);
+    return '';
+  }
+  return completion.data.choices[0].text;
 }
 
 function fail(candidate,status,err,context) {
@@ -560,6 +582,7 @@ module.exports = {
   cleanseVersion,
   exec,
   sha256,
+  ai,
   fail,
   now,
   weekAgo,
