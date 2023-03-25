@@ -95,18 +95,21 @@ function sha256(s) {
 
 async function ai(prompt) {
   let completion;
+  const history = [];
+  const messages = [];
+  messages.push({ role: "user", content: prompt });
   try {
-    completion = await openai.createCompletion({
-      model: "text-davinci-003",
-      max_tokens: 300,
-      prompt
+    completion = await openai.createChatCompletion({
+      model: 'gpt-3.5-turbo',
+      max_tokens: 400,
+      messages
     });
   }
   catch (ex) {
-    logger.warn(colour.red+(ex.message||ex.response)+colour.normal);
+    logger.warn(colour.red+(util.inspect(ex.response)||ex.message)+colour.normal);
     return '';
   }
-  return completion.data.choices[0].text;
+  return completion.data.choices[0].message.content;
 }
 
 function fail(candidate,status,err,context) {
