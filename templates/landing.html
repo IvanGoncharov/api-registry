@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ title }}</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="APIs.guru - OpenAPI Directory - {{title}}">
+    <meta name="robots" content="index,follow">
+    <meta name="author" content="APIs.guru">
+
+    <meta property="og:title" content="{{title}}">
+    <meta property="og:type" content="article">
+    <meta property="og:description" content="APIs.guru - OpenAPI Directory - {{title}}">
+    <meta property="og:image" content="https://api.apis.guru/logo.svg">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:site" content="@APIs_guru">
+    <meta name="twitter:title" content="API Details - APIs.guru">
+    <meta name="twitter:description" content="APIs.guru - OpenAPI Directory - {{title}}">
+    <meta name="twitter:image" content="https://api.apis.guru/logo.svg">
+
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <redoc spec-url='{{ url }}'></redoc>
+    <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
+    <p>
+    <div style="text-align: center;">
+      <h3>Provider summary</h3>
+    </div>
+    <form>
+      <textarea style="margin-left:50px;margin-bottom:30px;" rows="15" cols="132">
+        {{ landingText }}
+      </textarea>
+    </form>
+    <p>
+    <script type="application/ld+json">
+      {
+        "@context": "http://schema.org/",
+        "@type": "WebAPI",
+	"description": "APIs.guru - OpenAPI Directory - {{title}}",
+	"documentation": "{{ url }}",
+	"name": "{{title}}"
+      }
+    </script>
+  </body>
+</html>

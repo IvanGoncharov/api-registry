@@ -52,6 +52,7 @@ const mainCache = path.resolve('.','metadata','main.cache');
 const oasDefaultVersion = '3.0.0';
 
 const liquidEngine = new liquid.Engine();
+const landingPages = new Map();
 
 const newCandidates = [];
 
@@ -61,7 +62,8 @@ const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchor
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 const defaultVersion = '1.0.0';
 
-let htmlTemplate;
+let htmlTemplate, listTemplate, indexTemplate;
+let apiList = '';
 let argv = {};
 let iteration = 0;
 let apib2swagger, apiBlueprint;
@@ -645,9 +647,24 @@ const commands = {
     let docpath = path.resolve('.','deploy','docs',candidate.provider,candidate.service);
     await mkdirp(docpath);
     docpath += '/'+candidate.version+'.html';
-    const html = await htmlTemplate.render({ url: getApiUrl(candidate,'.json'), title: candidate.md.filename } );
+    let landingText = '';
+    if (landingPages.has(candidate.provider)) {
+      landingText = landingPages.get(candidate.provider);
+    }
+    else {
+      const landingFile = path.resolve('.','metadata','landingPages',candidate.provider+'.txt');
+      if (fs.existsSync(landingFile)) {
+        landingText = fs.readFileSync(landingFile,'utf8');
+      }
+      else {
+        landingText = '';
+      }
+      landingPages.set(candidate.provider, landingText);
+    }
+    const html = await htmlTemplate.render({ url: getApiUrl(candidate,'.json'), title: `${candidate.provider} - ${candidate.service} - ${candidate.version}`, landingText } );
     fs.writeFileSync(docpath,html,'utf8');
-    ng.logger.log(ng.colour.green+'🗎'+ng.colour.normal);
+    apiList += await listTemplate.render({ url: path.relative('./deploy/docs',docpath), title: `${candidate.provider} - ${candidate.service} - ${candidate.version}`});
+    ng.logger.log(ng.colour.green+'📚'+ng.colour.normal);
   },
   validate: async function(candidate) {
     try {
@@ -1158,7 +1175,9 @@ const startUp = {
     return candidates;
   },
   docs: async function(candidates) {
-    htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','redoc.html'),'utf8'));
+    htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','landing.html'),'utf8'));
+    listTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','partial.html'),'utf8'));
+    indexTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'));
     return candidates;
   },
   ci: async function(candidates) {
@@ -1278,13 +1297,16 @@ const wrapUp = {
       fs.writeFileSync(path.resolve('.','deploy','v2','openapi.yaml'),ourAPI,'utf8');
       const categories = fs.readFileSync(path.resolve('.','metadata','categories.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','categories.yaml'),categories,'utf8');
+      const logo = fs.readFileSync(path.resolve('.','metadata','logo.svg'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','logo.svg'),logo,'utf8');
     }
     catch (ex) {
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
     }
   },
   docs: async function(candidates) {
-    fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'),'utf8');
+    const index = await indexTemplate.render({ apiList });
+    fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),index,'utf8');
   },
   update: async function(candidates) {
     const services = ng.Tree({});
