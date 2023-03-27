@@ -62,7 +62,7 @@ const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchor
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 const defaultVersion = '1.0.0';
 
-let htmlTemplate, listTemplate, indexTemplate;
+let htmlTemplate, listTemplate;
 let apiList = '';
 let argv = {};
 let iteration = 0;
@@ -558,7 +558,7 @@ const commands = {
       }
       ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
     }
-    const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg';
+    const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg'; // this is ok for generic registries too
     let origLogo = defaultLogo;
     if ((o && o.info['x-logo']) && (o.info['x-logo'].url)) {
       origLogo = o.info['x-logo'].url;
@@ -626,7 +626,7 @@ const commands = {
 
     if (o) {
       if (!o.info['x-logo']) o.info['x-logo'] = {};
-      o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName;
+      o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName; // FIXME hardcoded
       candidate.info = o.info; // update the logo for list.json too
       candidate.externalDocs = o.externalDocs;
 
@@ -1092,7 +1092,7 @@ function rssFeed(data,updated) {
   rss['@version'] = '2.0';
   rss["@xmlns:atom"] = 'http://www.w3.org/2005/Atom';
   rss.channel = {};
-  rss.channel.title = 'APIs.guru OpenAPI directory RSS feed';
+  rss.channel.title = 'APIs.guru OpenAPI directory RSS feed'; // FIXME hardcoded
   rss.channel.link = 'https://api.apis.guru/v2/list.rss';
   rss.channel["atom:link"] = {};
   rss.channel["atom:link"]["@rel"] = 'self';
@@ -1177,7 +1177,6 @@ const startUp = {
   docs: async function(candidates) {
     htmlTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','landing.html'),'utf8'));
     listTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','partial.html'),'utf8'));
-    indexTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'));
     return candidates;
   },
   ci: async function(candidates) {
@@ -1260,7 +1259,7 @@ const wrapUp = {
     providerCount.Others = others;
     datasets.push({ title: 'providerCount', data: providerCount });
 
-    const ghRes = await fetch('https://api.github.com/repos/APIs-guru/openapi-directory', { cacheFolder: mainCache, refresh: 'force' });
+    const ghRes = await fetch('https://api.github.com/repos/APIs-guru/openapi-directory', { cacheFolder: mainCache, refresh: 'force' }); // FIXME hardcoded
     const ghStats = await ghRes.json();
 
     const metrics = {
@@ -1305,8 +1304,13 @@ const wrapUp = {
     }
   },
   docs: async function(candidates) {
+    const indexTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','index.html'),'utf8'));
     const index = await indexTemplate.render({ apiList });
     fs.writeFileSync(path.resolve('.','deploy','docs','index.html'),index,'utf8');
+    const sitemapTemplate = await liquidEngine.parse(fs.readFileSync(path.resolve(__dirname,'templates','sitemap.xml'),'utf8'));
+    const sitemap = await sitemapTemplate.render({ date: ng.now, baseUrl: 'https://api.apis.guru' }); // FIXME hardcoded
+    fs.writeFileSync(path.resolve('.','deploy','sitemap.xml'),sitemap,'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','robots.txt'),fs.readFileSync(path.resolve('.','metadata','robots.txt'),'utf8'),'utf8');
   },
   update: async function(candidates) {
     const services = ng.Tree({});

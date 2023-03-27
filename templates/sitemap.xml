@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{{baseUrl}}/docs/</loc>
+    <lastmod>{{date}}</lastmod>
+  </url>
+  <url>
+    <loc>{{baseUrl}}/v2/metrics.json/</loc>
+    <lastmod>{{date}}</lastmod>
+  </url>
+  <url>
+    <loc>{{baseUrl}}/v2/list.json</loc>
+    <lastmod>{{date}}</lastmod>
+  </url>
+  <url>
+    <loc>{{baseUrl}}/charts.html</loc>
+    <lastmod>{{date}}</lastmod>
+  </url>
+  <url>
+    <loc>{{baseUrl}}/v2/openapi.yaml<loc>
+    <lastmod>{{date}}</lastmod>
+  </url>
+</urlset>
+
