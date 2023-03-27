@@ -17,7 +17,7 @@
     <lastmod>{{date}}</lastmod>
   </url>
   <url>
-    <loc>{{baseUrl}}/v2/openapi.yaml<loc>
+    <loc>{{baseUrl}}/v2/openapi.yaml</loc>
     <lastmod>{{date}}</lastmod>
   </url>
 </urlset>
