@@ -661,7 +661,8 @@ const commands = {
       }
       landingPages.set(candidate.provider, landingText);
     }
-    const html = await htmlTemplate.render({ url: getApiUrl(candidate,'.json'), title: `${candidate.provider} - ${candidate.service} - ${candidate.version}`, landingText } );
+    const html = await htmlTemplate.render({ url: getApiUrl(candidate,'.json'), provider: candidate.provider,
+      title: `${candidate.provider} - ${candidate.service} - ${candidate.version}`, landingText } );
     fs.writeFileSync(docpath,html,'utf8');
     apiList += await listTemplate.render({ url: path.relative('./deploy/docs',docpath), title: `${candidate.provider} - ${candidate.service} - ${candidate.version}`});
     ng.logger.log(ng.colour.green+'📚'+ng.colour.normal);

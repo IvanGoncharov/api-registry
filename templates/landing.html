@@ -20,6 +20,8 @@
     <meta name="twitter:image" content="https://api.apis.guru/logo.svg">
 
     <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.3.0/css/all.min.css" integrity="sha512-SzlrxWUlpfuzQ+pcUCosxcglQRNAq/DZjVsC0lE40xsADsfeQoEypE+enwcOiGjk/bSuGGKHEyjSoQ1zVisanQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
       body {
         margin: 0;
@@ -29,17 +31,29 @@
   </head>
   <body>
     <redoc spec-url='{{ url }}'></redoc>
-    <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
-    <p>
-    <div style="text-align: center;">
-      <h3>Provider summary</h3>
+    <script src="https://cdn.jsdelivr.net/npm/redoc/bundles/redoc.standalone.js"> </script>
+
+    <br />
+
+    <div class="columns">
+      <div class="column is-four-fifths is-offset-1">
+    <article class="message is-primary">
+      <div class="message-header">
+        <p><span class="icon has-text-info">
+        <i class="fas fa-info-circle"></i>
+        </span>Provider Summary for {{provider}}</p>
+      </div>
+      <div class="message-body">
+        <textarea class="textarea is-primary" readonly placeholder="Nothing to see here, move along..." rows="15" cols="102">
+{{ landingText }}
+        </textarea>
+      </div>
+    </article>
+      </div>
     </div>
-    <form>
-      <textarea style="margin-left:50px;margin-bottom:30px;" rows="15" cols="132">
-        {{ landingText }}
-      </textarea>
-    </form>
-    <p>
+
+    <br />
+
     <script type="application/ld+json">
       {
         "@context": "http://schema.org/",
