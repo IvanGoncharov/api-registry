@@ -606,8 +606,8 @@ const commands = {
         }
       }
       catch (ex) {
-        colour = ng.colour.red;
-        ng.logger.warn(ng.colour.red+ex.message+ng.colour.normal);
+        colour = ng.colour.yellow;
+        ng.logger.warn(colour+ex.message+ng.colour.normal);
         if (argv.debug) ng.logger.warn(ex);
         const res = await cfetch(defaultLogo, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'never'});
         response = await res.buffer();
@@ -629,6 +629,7 @@ const commands = {
       o.info['x-logo'].url = 'https://api.apis.guru/v2/cache/logo/'+logoName; // FIXME hardcoded
       candidate.info = o.info; // update the logo for list.json too
       candidate.externalDocs = o.externalDocs;
+      candidate.logoUrl = o.info['x-logo'].url;
 
       s = ng.yamlStringify(o);
       const j = JSON.stringify(o,null,2);
@@ -780,7 +781,7 @@ const commands = {
 
           let gotLogo = false;
           if ((o.info['x-logo']) && (o.info['x-logo'].url)) {
-            let colour = ng.colour.red;
+            let colour = ng.colour.yellow;
             try {
               // check the logo URL and populate the logoCache
               const res = await fetch(o.info['x-logo'].url, {timeout:3500, agent:bobwAgent, cacheFolder: logoCache, refresh: 'once'});
@@ -1210,6 +1211,7 @@ const wrapUp = {
     const datasets = [];
     const providerCount = {};
     const list = {};
+    let listCsv = 'API,Provider,Service,Version,Description,LogoUrl\n';
 
     ng.logger.log('API list...');
 
@@ -1247,6 +1249,7 @@ const wrapUp = {
       }
       list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated||candidate.md.added, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
       if (candidate.md.preferred) list[key].preferred = cVersion;
+      listCsv += candidate.info.title.split(',')[0] + ',' + candidate.provider + ',' + candidate.service + ',' + candidate.version + ',' + (candidate.info.description||'').split('\n')[0].split(',')[0] + ',' + candidate.logoUrl + '\n';
     }
 
     const numProviders = Object.keys(providerCount).length;
@@ -1282,6 +1285,7 @@ const wrapUp = {
     badges(metrics);
 
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','v2','list.csv'),listCsv,'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),rssFeed(list,true),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','added.rss'),rssFeed(list,false),'utf8');
