@@ -289,7 +289,7 @@ async function retrieve(u, argv, slow) {
     u = url.pathToFileURL(argv.cached).toString();
   }
 
-  if (argv.provider && argv.provider.data && argv.provider.data.length) {
+  if (argv.provider && argv.provider.data && argv.provider.data.length && Array.isArray(argv.provider.data)) {
     ng.logger.prepend('S');
     const dataItem = argv.provider.data.find(function(e,i,a){
       return (e.url === u);
