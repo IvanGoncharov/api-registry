@@ -1212,6 +1212,7 @@ const wrapUp = {
     const providerCount = {};
     const list = {};
     let listCsv = 'API,Provider,Service,Version,Description,LogoUrl\n';
+    const providers = new Map();
 
     ng.logger.log('API list...');
 
@@ -1247,9 +1248,19 @@ const wrapUp = {
       if (!list[key]) {
         list[key] = { added: candidate.md.added, preferred: cVersion, versions: {} };
       }
-      list[key].versions[cVersion] = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated||candidate.md.added, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi };
+      const apiPath = path.resolve('.','deploy','v2','specs',key);
+      await mkdirp(apiPath);
+      const apiFile = `${cVersion}.json`;
+      const apiLink = `https://api.apis.guru/v2/specs/${key}/${apiFile}`;
+      const listEntry = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated||candidate.md.added, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi, link: apiLink };
+      list[key].versions[cVersion] = listEntry;
       if (candidate.md.preferred) list[key].preferred = cVersion;
       listCsv += candidate.info.title.split(',')[0] + ',' + candidate.provider + ',' + candidate.service + ',' + candidate.version + ',' + (candidate.info.description||'').split('\n')[0].split(',')[0] + ',' + candidate.logoUrl + '\n';
+      if (!providers.has(candidate.provider)) {
+        providers.set(candidate.provider,{});
+      }
+      providers.get(candidate.provider)[key] = listEntry;
+      fs.writeFileSync(`${apiPath}/${apiFile}`,JSON.stringify(listEntry,null,2),'utf8');
     }
 
     const numProviders = Object.keys(providerCount).length;
@@ -1287,6 +1298,11 @@ const wrapUp = {
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','list.csv'),listCsv,'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
+
+    for (let [key,value] of providers) {
+      fs.writeFileSync(path.resolve('.','deploy','v2',`${key}.json`),JSON.stringify({ apis: value },null,2),'utf8');
+    }
+
     fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),rssFeed(list,true),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','added.rss'),rssFeed(list,false),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','.nojekyll'),'','utf8');
