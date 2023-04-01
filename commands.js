@@ -1315,6 +1315,8 @@ const wrapUp = {
       fs.writeFileSync(path.resolve('.','deploy','charts.html'),chartHtml,'utf8');
       const ourAPI = fs.readFileSync(path.resolve('.','metadata','openapi.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','openapi.yaml'),ourAPI,'utf8');
+      const aiAPI = fs.readFileSync(path.resolve('.','metadata','ai-openapi.yaml'),'utf8');
+      fs.writeFileSync(path.resolve('.','deploy','v2','ai-openapi.yaml'),aiAPI,'utf8');
       const categories = fs.readFileSync(path.resolve('.','metadata','categories.yaml'),'utf8');
       fs.writeFileSync(path.resolve('.','deploy','v2','categories.yaml'),categories,'utf8');
       const logo = fs.readFileSync(path.resolve('.','metadata','logo.svg'),'utf8');
