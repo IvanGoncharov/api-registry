@@ -78,6 +78,10 @@ function majorMinor(version) {
   return `${semver.major(version)}.${semver.minor(version)}`;
 }
 
+function httpStatus(status) {
+  return `${status} - ${http.STATUS_CODES[status]}`;
+}
+
 async function slack(text) {
   if (process.env.SLACK_ALERT_URL) {
     await fetch(process.env.SLACK_ALERT_URL, {
@@ -135,7 +139,10 @@ function getProvider(u, source) {
   if (!domain) {
     domain = absUrl.host;
   }
-  if (typeof domain === 'string') domain = domain.replace('api.','');
+  if (typeof domain === 'string') {
+    domain = domain.replace('api.','');
+    if (domain.indexOf('}')>=0) domain = domain.split('}')[1];
+  }
   if (topLevelDomains && topLevelDomains[0] === 'googleapis') {
     return 'googleapis.com'; // FIXME hard-coded to fit in with previous script behaviour
   }
@@ -721,7 +728,7 @@ const commands = {
         ng.logger.log(getProvider(ou, u));
       }
       else {
-        ng.logger.warn(ng.colour.red,result.response.status,ng.colour.normal);
+        ng.logger.warn(ng.colour.red,httpStatus(result.response.status),ng.colour.normal);
         process.exitCode = 1;
       }
     }
@@ -892,7 +899,7 @@ const commands = {
           const patch = ng.Tree(candidate.parent.patch);
 
           if (argv.categories) {
-            const categories = argv.categories.split(',');
+            const categories = argv.categories.split(','); // TODO validate against metadata/categories.yaml
             o.info['x-apisguru-categories'] = categories;
             patch.info['x-apisguru-categories'] = categories;
           }
@@ -916,7 +923,7 @@ const commands = {
         }
       }
       else {
-        ng.logger.warn(ng.colour.red,result.response.status,ng.colour.normal);
+        ng.logger.warn(ng.colour.red,httpStatus(result.response.status),ng.colour.normal);
       }
     }
     catch (ex) {
@@ -1045,14 +1052,14 @@ const commands = {
           candidate.md.mediatype = result.response.headers.get('content-type');
         }
         ng.fail(candidate,result.response.status);
-        ng.logger.log(ng.colour.red,result.response.status,ng.colour.normal);
+        ng.logger.log(ng.colour.red,httpStatus(result.response.status),ng.colour.normal);
         return false;
       }
     }
     catch (ex) {
       if (ex.timings) delete ex.timings;
       ng.logger.log();
-      ng.logger.warn(ng.colour.red+ex.message,ex.response ? ex.response.statusCode : '',ng.colour.normal);
+      ng.logger.warn(ng.colour.red+ex.message,ex.response ? httpStatus(ex.response.statusCode) : '',ng.colour.normal);
       if (argv.debug || !ex.message) ng.logger.warn(ex);
       let r = ex.response;
       if (r) {
