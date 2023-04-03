@@ -725,7 +725,7 @@ const commands = {
           process.exitCode = 1;
         }
         let ou = getServer(o, u);
-        ng.logger.log(getProvider(ou, u));
+        ng.logger.log('Provider:',getProvider(ou, u), 'Fixes:', valOpt.patches);
       }
       else {
         ng.logger.warn(ng.colour.red,httpStatus(result.response.status),ng.colour.normal);
