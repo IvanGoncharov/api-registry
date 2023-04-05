@@ -409,10 +409,6 @@ const commands = {
     ng.logger.log('nop');
     return true;
   },
-  list: async function(candidate) {
-    ng.logger.log('nop');
-    return true;
-  },
   sort: async function(candidate) {
     ng.logger.log('nop');
     return true;
@@ -1262,7 +1258,7 @@ const wrapUp = {
       const listEntry = { added: candidate.md.added, info: candidate.info, externalDocs: candidate.externalDocs, updated: candidate.md.updated||candidate.md.added, swaggerUrl: getApiUrl(candidate, '.json'), swaggerYamlUrl: getApiUrl(candidate,'.yaml'), openapiVer: candidate.md.openapi, link: apiLink };
       list[key].versions[cVersion] = listEntry;
       if (candidate.md.preferred) list[key].preferred = cVersion;
-      listCsv += candidate.info.title.split(',')[0] + ',' + candidate.provider + ',' + candidate.service + ',' + candidate.version + ',' + (candidate.info.description||'').split('\n')[0].split(',')[0] + ',' + candidate.logoUrl + '\n';
+      listCsv += candidate.info?.title.split(',')[0] + ',' + candidate.provider + ',' + candidate.service + ',' + candidate.version + ',' + (candidate.info?.description||'').split('\n')[0].split(',')[0] + ',' + candidate.logoUrl + '\n';
       if (!providers.has(candidate.provider)) {
         providers.set(candidate.provider,{});
       }
@@ -1305,9 +1301,15 @@ const wrapUp = {
     fs.writeFileSync(path.resolve('.','deploy','v2','list.json'),JSON.stringify(list,null,2),'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','list.csv'),listCsv,'utf8');
     fs.writeFileSync(path.resolve('.','deploy','v2','metrics.json'),JSON.stringify(metrics,null,2),'utf8');
+    fs.writeFileSync(path.resolve('.','deploy','v2','providers.json'),JSON.stringify({ data: Array.from(providers.keys()) },null,2),'utf8');
 
     for (let [key,value] of providers) {
       fs.writeFileSync(path.resolve('.','deploy','v2',`${key}.json`),JSON.stringify({ apis: value },null,2),'utf8');
+      await mkdirp(path.resolve('.','deploy','v2',key));
+      fs.writeFileSync(path.resolve('.','deploy','v2',`${key}/services.json`),JSON.stringify({ data: Object.keys(providers.get(key)).map(function(e,i,a){
+        if (e === key) return '';
+        return e.replace(`${key}:`,'');
+      })},null,2),'utf8');
     }
 
     fs.writeFileSync(path.resolve('.','deploy','v2','list.rss'),rssFeed(list,true),'utf8');
