@@ -117,11 +117,11 @@ function getServer(o, u) {
       o.servers.unshift({ url: url });
     }
     assert.ok(o.servers[0],'Could not determine servers information');
-    let ok = true;
-    if (o.servers[0].url.indexOf('localhost')>=0) ok = false;
-    if (o.servers[0].url.indexOf('githubusercontent')>=0) ok = false;
-    assert.ok(ok,'Server must not be in blocklist');
     ou = o.servers[0].url;
+    let ok = true;
+    if (ou.indexOf('localhost')>=0) ok = false;
+    if (ou.indexOf('githubusercontent')>=0) ok = false;
+    assert.ok(ok,`Server must not be in blocklist: ${ou}`);
   }
   if (o.host) {
     if (argv.host) o.host = argv.host;
