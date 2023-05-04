@@ -57,7 +57,7 @@ const landingPages = new Map();
 const newCandidates = [];
 
 let oasCache = {};
-const resOpt = { resolve: true, fatal: true, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
+const resOpt = { resolve: true, fatal: false, verbose: false, cache: oasCache, fetch:fetch, agent: bobwAgent, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const valOpt = { patch: true, repair: true, warnOnly: true, convWarn: [], anchors: true, laxurls: true, laxDefaults: true, laxScopes: false, validateSchema: 'never', resolve: false, cache: oasCache, fetch:fetch, fetchOptions: { cacheFolder: mainCache, refresh: 'default' } };
 const dayMs = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
 const defaultVersion = '1.0.0';
@@ -115,6 +115,9 @@ function getServer(o, u) {
         url = 'http://'+argv.host; // not https as likely a .local placeholder
       }
       o.servers.unshift({ url: url });
+    }
+    if (!o.servers[0]) {
+      o.servers[0] = { url: new URL('/',u).toString() };
     }
     assert.ok(o.servers[0],'Could not determine servers information');
     ou = o.servers[0].url;
@@ -315,10 +318,11 @@ async function retrieve(u, argv, slow) {
 
   if (u.startsWith('http') || u.startsWith('blob')) {
     ng.logger.prepend('F');
-    const timeout = slow ? 15000 : 5000;
+    const timeout = slow ? 25000 : 15000;
     const headers = { 'Accept': '*/*', 'Accept-Encoding': 'gzip,deflate' };
     if (argv.body) headers['Content-Type'] = 'application/json';
     response = await fetch(u, { logToConsole: argv.verbose, timeout, signal: AbortSignal.timeout(timeout), agent:bobwAgent, cacheFolder: mainCache, refresh: 'default', method: (argv.method||'GET'), body: argv.body, headers });
+    // TODO: do we need to kill the fetch timer?
     if ((typeof response.status === 'string') && (response.status.startsWith('200'))) {
       ok = true;
     }
