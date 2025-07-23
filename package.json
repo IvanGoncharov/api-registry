@@ -1,22 +1,10 @@
 {
-  "name": "@Mermade/api-registry",
-  "version": "1.0.84",
-  "description": "Own-label API registry",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
-  "main": "index.js",
+  "name": "apis-guru-scripts",
+  "private": true,
   "scripts": {
     "lint": "npx eslint *.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "API",
-    "registry",
-    "directory",
-    "portal"
-  ],
-  "author": "Mike Ralphson",
   "license": "AGPL-3.0",
   "dependencies": {
     "@astridhq/fetch-favicon": "0.0.4-rc.3",
@@ -50,13 +38,5 @@
     "urijs": "^1.19.5",
     "uuid": "^8.3.2",
     "yaml": "^2.0.0-6"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Mermade/api-registry.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Mermade/api-registry/issues"
-  },
-  "homepage": "https://github.com/Mermade/api-registry#readme"
+  }
 }

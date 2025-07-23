@@ -1,8 +1,8 @@
-# APIs.guru API Registry
+# APIs.guru scripts
 
-## Documentation 
+## Documentation
 
-Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/openapi-directory/wiki/Development) 
+Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/openapi-directory/wiki/Development)
 
 ## TODO
 
@@ -12,4 +12,3 @@ Coming soon, for now, see the [APIs.guru Wiki](https://github.com/APIs-guru/open
 
 * Acebase doesn't like empty keys - as per our default serviceNames
 * Acebase doesn't like keys containing `\ / [ ]` which can trip up some metadata patches
-
