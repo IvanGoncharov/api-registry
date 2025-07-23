@@ -28,9 +28,8 @@ if (!command) {
 }
 let pathspec = argv._[3];
 
-process.on('exit', function() {
-  console.log('Exiting with',process.exitCode);
+process.on('exit', function () {
+  console.log('Exiting with', process.exitCode);
 });
 
 cmd.main(command, pathspec, argv);
-

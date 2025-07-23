@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "lint": "npx eslint *.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run prettier:check",
+    "prettier": "prettier --write --list-different .",
+    "prettier:check": "prettier --check ."
   },
   "license": "AGPL-3.0",
   "dependencies": {
@@ -38,5 +40,8 @@
     "urijs": "^1.19.5",
     "uuid": "^8.3.2",
     "yaml": "^2.0.0-6"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
   }
 }

@@ -7,5 +7,5 @@ async function main(prompt) {
 }
 
 let args = Array(process.argv[2]);
-args.splice(0,2);
+args.splice(0, 2);
 main(args.join(' '));
