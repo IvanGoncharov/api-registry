@@ -1,5 +1,5 @@
 const util = require('util');
-const ng = require('./backend.js');
+const ng = require('./backend.cjs');
 
 async function main(site) {
   const resp = await ng.ai(`Write 150 to 250 words on what ${site} does`);

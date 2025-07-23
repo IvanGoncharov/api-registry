@@ -5,7 +5,7 @@
 
 const path = require('path');
 
-const cmd = require('./commands.js');
+const cmd = require('./commands.cjs');
 
 const argv = require('tiny-opts-parser')(process.argv);
 if (argv.q) argv.quiet = argv.q;

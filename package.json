@@ -1,6 +1,7 @@
 {
   "name": "apis-guru-scripts",
   "private": true,
+  "type": "module",
   "scripts": {
     "lint": "npx eslint *.js",
     "test": "npm run prettier:check",

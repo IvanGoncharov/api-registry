@@ -33,7 +33,7 @@ const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 const betterLookup = require('better-lookup').lookup;
 const cheerio = require('cheerio');
 
-const ng = require('./backend.js');
+const ng = require('./backend.cjs');
 
 const httpAgent = new http.Agent({ keepAlive: true, lookup: betterLookup });
 const httpsAgent = new https.Agent({
