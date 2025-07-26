@@ -1,4 +1,3 @@
-const util = require('util');
 const ng = require('./backend.cjs');
 
 async function main(site) {

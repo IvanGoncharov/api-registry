@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// @ts-check
-
-'use strict';
-
-const path = require('path');
 
 const cmd = require('./commands.cjs');
 

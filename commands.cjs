@@ -1,8 +1,3 @@
-#!/usr/bin/env node
-// @ts-check
-
-'use strict';
-
 const assert = require('assert');
 const fs = require('fs');
 const http = require('http');
@@ -41,8 +36,8 @@ const httpsAgent = new https.Agent({
   lookup: betterLookup,
   rejectUnauthorized: false,
 });
-const bobwAgent = function (_parsedURL) {
-  if (_parsedURL.protocol === 'http:') {
+const bobwAgent = function (parsedURL) {
+  if (parsedURL.protocol === 'http:') {
     return httpAgent;
   } else {
     return httpsAgent;
@@ -93,11 +88,6 @@ let apiList = '';
 let argv = {};
 let iteration = 0;
 let apib2swagger, apiBlueprint;
-
-const template = function (templateString, templateVars) {
-  // use this. for replaceable parameters
-  return new Function('return `' + templateString + '`;').call(templateVars);
-};
 
 function majorMinor(version) {
   if (version === '2.0') version = '2.0.0';
@@ -162,7 +152,7 @@ function getServer(o, u) {
 function getProvider(u, source) {
   const absUrl = new URL(u, source);
   const abs = absUrl.toString();
-  let { subDomains, domain, topLevelDomains } = pd.parseDomain(pd.fromUrl(abs));
+  let { domain, topLevelDomains } = pd.parseDomain(pd.fromUrl(abs));
   if (!domain) {
     domain = absUrl.host;
   }
@@ -331,10 +321,6 @@ async function validateObj(o, s, candidate, source) {
   return result.valid;
 }
 
-async function fix(candidate, o) {
-  // TODO use jmespath queries to fix up stuff
-}
-
 async function retrieve(u, argv, slow) {
   let response = { status: 599, ok: false, headers: {} };
   let s;
@@ -351,7 +337,7 @@ async function retrieve(u, argv, slow) {
     Array.isArray(argv.provider.data)
   ) {
     ng.logger.prepend('S');
-    const dataItem = argv.provider.data.find(function (e, i, a) {
+    const dataItem = argv.provider.data.find(function (e) {
       return e.url === u;
     });
     if (dataItem) {
@@ -362,7 +348,7 @@ async function retrieve(u, argv, slow) {
         `Could not find ${u} in stored data`,
         ng.colour.normal,
       );
-      argv.provider.data.find(function (e, i, a) {
+      argv.provider.data.find(function (e) {
         ng.logger.warn('Found', e.url);
       });
       return { response: { ok: false, status: 404 } };
@@ -427,7 +413,7 @@ async function getObjFromText(text, candidate, ct) {
     let obj;
     try {
       obj = ng.yamlParse(text);
-    } catch (ex) {
+    } catch (_err) {
       ng.logger.warn('Falling back to lenient yaml...');
       try {
         obj = yml.parse(text, {
@@ -435,7 +421,7 @@ async function getObjFromText(text, candidate, ct) {
           loglevel: 'silent',
           prettyErrors: true,
         });
-      } catch (ex) {
+      } catch (_err) {
         ng.logger.warn('Failed to parse input as yaml or API Blueprint.');
         if (ct) ng.logger.warn(`Content-Type: ${ct}`);
         process.exitCode = 1;
@@ -474,15 +460,15 @@ function runGC(snapshot) {
 }
 
 const commands = {
-  checkpref: async function (candidate) {
+  checkpref: async function (_candidate) {
     ng.logger.log('nop');
     return true;
   },
-  sort: async function (candidate) {
+  sort: async function (_candidate) {
     ng.logger.log('nop');
     return true;
   },
-  populate: async function (candidate) {
+  populate: async function (_candidate) {
     ng.logger.log('pop');
     return true;
   },
@@ -859,7 +845,7 @@ const commands = {
       ng.logger.log(ng.colour.yellow + '🕓' + ng.colour.normal);
     }
   },
-  check: async function (u, metadata) {
+  check: async function (u, _metadata) {
     ng.logger.prepend(u + ' ');
     try {
       const result = await retrieve(u, argv);
@@ -867,12 +853,7 @@ const commands = {
         const ct = result.response.headers.get('Content-Type');
         const candidate = { md: { source: { url: u }, valid: false } };
         let o = await getObjFromText(result.text, candidate, ct);
-        const valid = await validateObj(
-          o,
-          result.text,
-          candidate,
-          candidate.md.source.url,
-        );
+        await validateObj(o, result.text, candidate, candidate.md.source.url);
         if (valOpt.openapi) o = valOpt.openapi;
 
         candidate.md.endpoints = countEndpoints(o);
@@ -983,7 +964,9 @@ const commands = {
                 gotLogo = true;
                 colour = ng.colour.green;
               }
-            } catch (ex) {}
+            } catch (_err) {
+              /* empty */
+            }
             ng.logger.prepend(colour + '📷 ' + ng.colour.normal);
           }
           if (
@@ -1248,7 +1231,7 @@ const commands = {
           if (candidate.provider.indexOf('.local') > 0) {
             if (!o.swagger) {
               if (!o.servers) o.servers = [];
-              const existing = o.servers.find(function (e, i, a) {
+              const existing = o.servers.find(function (e) {
                 return e.url.indexOf(candidate.provider) >= 0;
               });
               if (!existing)
@@ -1325,11 +1308,12 @@ const commands = {
     return true;
   },
   remove: async function (candidate, metadata) {
-    const filename = candidate.md.filename;
     ng.logger.log(ng.colour.red + '␡' + ng.colour.normal);
     try {
       ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
-    } catch (ex) {}
+    } catch (_err) {
+      /* empty */
+    }
     delete metadata[candidate.provider].apis[candidate.service][
       candidate.version
     ];
@@ -1519,7 +1503,7 @@ const startUp = {
   validate: async function (candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
-    return candidates.filter(function (e, i, a) {
+    return candidates.filter(function (e) {
       return e.provider !== 'azure.com'; // temp FIXME azure services
     });
   },
@@ -1688,7 +1672,7 @@ const wrapUp = {
         path.resolve('.', 'deploy', 'v2', `${key}/services.json`),
         JSON.stringify(
           {
-            data: Object.keys(providers.get(key)).map(function (e, i, a) {
+            data: Object.keys(providers.get(key)).map(function (e) {
               if (e === key) return '';
               return e.replace(`${key}:`, '');
             }),
@@ -1771,7 +1755,7 @@ const wrapUp = {
       ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
     }
   },
-  docs: async function (candidates) {
+  docs: async function (_candidates) {
     const indexTemplate = await liquidEngine.parse(
       fs.readFileSync(
         path.resolve(__dirname, 'templates', 'index.html'),
@@ -1849,16 +1833,6 @@ const wrapUp = {
 wrapUp.checkpref = wrapUp.update;
 wrapUp.list = wrapUp.deploy;
 
-function analyseOpt(options) {
-  // show size of each bucket in oas-kit options
-  let result = {};
-  for (let p in options) {
-    let j = JSON.stringify(options[p]);
-    result[p] = typeof j === 'string' ? j.length : 0;
-  }
-  return result;
-}
-
 async function nop(p) {
   return p;
 }
@@ -1883,7 +1857,7 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
   }
 
   if (!argv.driver) {
-    const apis = await ng.gather(command, pathspec, argv);
+    const apis = await ng.gather(command, pathspec);
     const len = Object.keys(apis).length;
     if (len) {
       ng.logger.log(len, 'API files read');
@@ -1915,7 +1889,6 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
     candidates = await startUp[command](candidates);
   }
 
-  let count = 0;
   let oldProvider = '*';
   for (let candidate of candidates) {
     if (candidate.provider !== oldProvider) {
@@ -1936,10 +1909,6 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
     );
     valOpt.patches = 0;
     await commands[command](candidate, metadata);
-
-    //let voa = analyseOpt(valOpt);
-    //fs.writeFileSync('./valopt'+count+'.json',JSON.stringify(voa,null,2),'utf8');
-    count++;
   }
 
   if (wrapUp[command]) {

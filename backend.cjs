@@ -1,9 +1,3 @@
-//@ts-check
-
-'use strict';
-
-// TODO logging websocket support for API mode?
-
 const cp = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -109,7 +103,6 @@ function sha256(s) {
 
 async function ai(prompt) {
   let completion;
-  const history = [];
   const messages = [];
   messages.push({ role: 'user', content: prompt });
   try {
@@ -140,15 +133,15 @@ const driverFuncs = {
   // TODO add swaggerhub driver, using endpoint
   // https://api.swaggerhub.com/apis/{owner}/{api}/settings/default
 
-  nop: async function (provider, md) {
+  nop: async function (_provider, _md) {
     // nop
     return true;
   },
-  url: async function (provider, md) {
+  url: async function (_provider, _md) {
     // nop
     return true;
   },
-  external: async function (provider, md) {
+  external: async function (_provider, _md) {
     // nop
     return true;
   },
@@ -187,7 +180,6 @@ const driverFuncs = {
       propertyJsHandles.map((handle) => handle.jsonValue()),
     );
 
-    let result;
     md.data = [];
     for (let href of hrefs) {
       if (href.startsWith('blob:')) {
@@ -260,7 +252,7 @@ const driverFuncs = {
     if (res.ok) {
       const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
       const stream = res.body.pipe(tarx);
-      stream.on('warn', function (code, message, data) {
+      stream.on('warn', function (code, message) {
         logger.warn('tar !', message);
       });
       stream.on('entry', function (entry) {
@@ -475,12 +467,12 @@ function saveMetadata(command) {
   return result;
 }
 
-async function gather(command, pathspec, argv) {
+async function gather(command, pathspec) {
   apis = {};
   if (!pathspec || pathspec === defaultPathSpec) return apis;
   logger.log(`Gathering from ${pathspec}`);
   try {
-    const fileArr = await rf(
+    await rf(
       pathspec,
       { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH },
       function (err, filename, content) {
@@ -501,7 +493,7 @@ async function gather(command, pathspec, argv) {
         }
       },
     );
-  } catch (ex) {
+  } catch (_err) {
     logger.warn(`Pathspec not found ${pathspec}`);
   }
   return apis;
@@ -548,7 +540,6 @@ function populateMetadata(apis, pathspec, argv) {
     const unofficial = !!api.info['x-unofficialSpec'];
     if (serviceName) comp.pop();
     comp.pop(); // providerName
-    const filepath = comp.join('/');
     const origin = clone(api.info['x-origin']) || [{}]; // clone so we don't affect API object itself
     const source = origin.pop();
     const history = origin; // what's left
