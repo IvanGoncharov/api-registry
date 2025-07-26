@@ -14,7 +14,6 @@ const yaml = require('yaml');
 const tar = require('tar');
 const puppeteer = require('puppeteer');
 const zip = require('adm-zip');
-const { Configuration, OpenAIApi } = require('openai');
 
 const now = new Date().toISOString(); // now is a string because it is used to compare to strings in the registry
 const weekAgo = new Date(new Date().setDate(new Date().getDate() - 7)); // weekAgo is a date because it is used in date calculations
@@ -33,11 +32,6 @@ const defaultPathSpec = path.relative('.', 'APIs');
 // cacheFolder constants
 const indexCache = path.resolve('.', 'metadata', 'index.cache');
 const archiveCache = path.resolve('.', 'metadata', 'archive.cache');
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(configuration);
 
 let metadata = {};
 let metadataConsistent = false;
@@ -99,25 +93,6 @@ function exec(command) {
 
 function sha256(s) {
   return crypto.createHash('sha256').update(s).digest('hex');
-}
-
-async function ai(prompt) {
-  let completion;
-  const messages = [];
-  messages.push({ role: 'user', content: prompt });
-  try {
-    completion = await openai.createChatCompletion({
-      model: 'gpt-3.5-turbo',
-      max_tokens: 400,
-      messages,
-    });
-  } catch (ex) {
-    logger.warn(
-      colour.red + (util.inspect(ex.response) || ex.message) + colour.normal,
-    );
-    return '';
-  }
-  return completion.data.choices[0].message.content;
 }
 
 function fail(candidate, status, err, context) {
@@ -683,7 +658,6 @@ module.exports = {
   cleanseVersion,
   exec,
   sha256,
-  ai,
   fail,
   now,
   weekAgo,
