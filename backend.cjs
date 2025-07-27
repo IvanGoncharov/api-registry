@@ -108,19 +108,19 @@ const driverFuncs = {
   // TODO add swaggerhub driver, using endpoint
   // https://api.swaggerhub.com/apis/{owner}/{api}/settings/default
 
-  nop: async function (_provider, _md) {
+  async nop(_provider, _md) {
     // nop
     return true;
   },
-  url: async function (_provider, _md) {
+  async url(_provider, _md) {
     // nop
     return true;
   },
-  external: async function (_provider, _md) {
+  async external(_provider, _md) {
     // nop
     return true;
   },
-  apisjson: async function (provider, md) {
+  async apisjson(provider, md) {
     logger.log('  ', md.mainUrl);
     const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const apisjson = await res.json();
@@ -137,7 +137,7 @@ const driverFuncs = {
     }
     return true;
   },
-  blob: async function (provider, md) {
+  async blob(provider, md) {
     if (!browser) browser = await puppeteer.launch();
     const page = await browser.newPage();
     await page.goto(md.mainUrl, { waitUntil: 'networkidle0' });
@@ -173,7 +173,7 @@ const driverFuncs = {
     }
     return true;
   },
-  catalog: async function (provider, md) {
+  async catalog(provider, md) {
     md.data = [];
     logger.log('  ', md.mainUrl);
     const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
@@ -199,12 +199,12 @@ const driverFuncs = {
     }
     return true;
   },
-  html: async function (provider, md) {
+  async html(provider, md) {
     logger.log('  ', md.mainUrl);
     // TODO use a cheerio DOM selector and an optional regex for replacement
     return true;
   },
-  google: async function (provider, md) {
+  async google(provider, md) {
     logger.log('  ', md.mainUrl);
     const res = await fetch(md.mainUrl, { cacheFolder: indexCache });
     const discovery = await res.json();
@@ -216,7 +216,7 @@ const driverFuncs = {
     }
     return true;
   },
-  github: async function (provider, md) {
+  async github(provider, md) {
     // TODO support GitHub action artifacts (download via API)
     // https://docs.github.com/en/rest/reference/actions#artifacts
     logger.log('  ', md.org, md.repo, md.branch, md.glob);
@@ -283,7 +283,7 @@ const driverFuncs = {
       return false;
     }
   },
-  zip: async function (provider, md) {
+  async zip(provider, md) {
     md.data = [];
     for (let u of md.mainUrl) {
       logger.log(colour.green, u);
@@ -308,10 +308,6 @@ const driverFuncs = {
     return true;
   },
 };
-
-function registerDriver(drv) {
-  driverFuncs[drv.name] = drv.run;
-}
 
 function sortJson(json) {
   json = sortobject(json);
@@ -663,11 +659,9 @@ module.exports = {
   weekAgo,
   loadMetadata,
   saveMetadata,
-  registerDriver,
   gather,
   populateMetadata,
   runDrivers,
   getCandidates,
   trimLeads,
-  numDrivers: Object.keys(driverFuncs).length,
 };

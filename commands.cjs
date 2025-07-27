@@ -460,19 +460,19 @@ function runGC(snapshot) {
 }
 
 const commands = {
-  checkpref: async function (_candidate) {
+  async checkpref(_candidate) {
     ng.logger.log('nop');
     return true;
   },
-  sort: async function (_candidate) {
+  async sort(_candidate) {
     ng.logger.log('nop');
     return true;
   },
-  populate: async function (_candidate) {
+  async populate(_candidate) {
     ng.logger.log('pop');
     return true;
   },
-  git: async function (candidate) {
+  async git(candidate) {
     const dates = ng
       .exec(`git log --format=%aD --follow -- '${candidate.md.filename}'`)
       .toString()
@@ -482,18 +482,18 @@ const commands = {
     ng.logger.log('git');
     return true;
   },
-  urls: async function (candidate) {
+  async urls(candidate) {
     ng.logger.log();
     ng.logger.log(
       '🔗 ',
       ng.colour.yellow + candidate.md.source.url + ng.colour.normal,
     );
   },
-  metadata: async function (candidate) {
+  async metadata(candidate) {
     ng.logger.log();
     ng.logger.log(ng.yamlStringify(candidate.md));
   },
-  contact: async function (candidate) {
+  async contact(candidate) {
     ng.logger.log();
     if (candidate.info) {
       if (candidate.info.contact) {
@@ -538,7 +538,7 @@ const commands = {
       }
     }
   },
-  404: async function (candidate) {
+  async 404(candidate) {
     if (parseInt(candidate.md.statusCode, 10) >= 400) {
       const patch = Object.assign(
         {},
@@ -563,14 +563,14 @@ const commands = {
       ng.logger.prepend(ng.colour.clear);
     }
   },
-  retry: async function (candidate) {
+  async retry(candidate) {
     if (parseInt(candidate.md.statusCode, 10) >= 400) {
       await commands.update(candidate);
     } else {
       ng.logger.prepend(ng.colour.clear);
     }
   },
-  rewrite: async function (candidate) {
+  async rewrite(candidate) {
     let s = fs.readFileSync(candidate.md.filename, 'utf8');
     let o = ng.yamlParse(s);
     if (o.info) {
@@ -581,7 +581,7 @@ const commands = {
     fs.writeFileSync(candidate.md.filename, ng.yamlStringify(o), 'utf8');
     ng.logger.log('rw');
   },
-  purge: async function (candidate) {
+  async purge(candidate) {
     if (!fs.existsSync(candidate.md.filename)) {
       ng.logger.log(ng.colour.yellow + '␡' + ng.colour.normal);
       delete candidate.parent[candidate.version];
@@ -589,7 +589,7 @@ const commands = {
       ng.logger.log();
     }
   },
-  endpoints: async function (candidate) {
+  async endpoints(candidate) {
     try {
       let s = fs.readFileSync(candidate.md.filename, 'utf8');
       const o = ng.yamlParse(s);
@@ -607,7 +607,7 @@ const commands = {
       ng.logger.log(ng.colour.red + ex.message, ng.colour.normal);
     }
   },
-  cache: async function (candidate) {
+  async cache(candidate) {
     let s = fs.readFileSync(candidate.md.filename, 'utf8');
     const o = ng.yamlParse(s);
     const origin = o.info['x-origin'];
@@ -629,7 +629,7 @@ const commands = {
     candidate.md.source = candidate.md.history.pop();
     ng.logger.log('cache');
   },
-  logo: async function (candidate) {
+  async logo(candidate) {
     const logo = await getSocial(candidate);
     ng.logger.log(logo);
     const patch = Object.assign({}, candidate.parent.patch, candidate.gp.patch);
@@ -639,7 +639,7 @@ const commands = {
     }
     return candidate;
   },
-  deploy: async function (candidate) {
+  async deploy(candidate) {
     if (argv.dashboard) {
       ng.logger.log();
       candidate.info = {
@@ -773,7 +773,7 @@ const commands = {
     }
     return false;
   },
-  docs: async function (candidate) {
+  async docs(candidate) {
     let docpath = path.resolve(
       '.',
       'deploy',
@@ -813,7 +813,7 @@ const commands = {
     });
     ng.logger.log(ng.colour.green + '📚' + ng.colour.normal);
   },
-  validate: async function (candidate) {
+  async validate(candidate) {
     try {
       const s = fs.readFileSync(candidate.md.filename, 'utf8');
       const o = ng.yamlParse(s);
@@ -825,7 +825,7 @@ const commands = {
       ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
     }
   },
-  ci: async function (candidate) {
+  async ci(candidate) {
     const diff = Math.round(
       Math.abs((new Date(ng.now) - new Date(candidate.md.updated)) / dayMs),
     );
@@ -845,7 +845,7 @@ const commands = {
       ng.logger.log(ng.colour.yellow + '🕓' + ng.colour.normal);
     }
   },
-  check: async function (u, _metadata) {
+  async check(u, _metadata) {
     ng.logger.prepend(u + ' ');
     try {
       const result = await retrieve(u, argv);
@@ -882,7 +882,7 @@ const commands = {
       process.exitCode = 1;
     }
   },
-  add: async function (u, metadata) {
+  async add(u, metadata) {
     ng.logger.prepend(u + ' ');
     try {
       const result = await retrieve(u, argv, true);
@@ -1126,7 +1126,7 @@ const commands = {
       if (argv.debug) ng.logger.warn(ex);
     }
   },
-  update: async function (candidate) {
+  async update(candidate) {
     const u = candidate.md.source.url;
     if (!u) throw new Error('No url');
     if (candidate.driver === 'external') return true;
@@ -1307,7 +1307,7 @@ const commands = {
     }
     return true;
   },
-  remove: async function (candidate, metadata) {
+  async remove(candidate, metadata) {
     ng.logger.log(ng.colour.red + '␡' + ng.colour.normal);
     try {
       ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
@@ -1451,12 +1451,6 @@ function badges(metrics) {
       color: 'orange',
     },
     {
-      label: '🏎️  Drivers',
-      name: 'drivers.svg',
-      prop: 'numDrivers',
-      color: 'cyan',
-    },
-    {
       label: '🏢 Providers',
       name: 'providers.svg',
       prop: 'numProviders',
@@ -1476,11 +1470,11 @@ function badges(metrics) {
 }
 
 const startUp = {
-  deploy: async function (candidates) {
+  async deploy(candidates) {
     await mkdirp(logoPath);
     return candidates;
   },
-  docs: async function (candidates) {
+  async docs(candidates) {
     htmlTemplate = await liquidEngine.parse(
       fs.readFileSync(
         path.resolve(__dirname, 'templates', 'landing.html'),
@@ -1495,12 +1489,12 @@ const startUp = {
     );
     return candidates;
   },
-  ci: async function (candidates) {
+  async ci(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
     return candidates;
   },
-  validate: async function (candidates) {
+  async validate(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
     return candidates.filter(function (e) {
@@ -1510,7 +1504,7 @@ const startUp = {
 };
 
 const wrapUp = {
-  deploy: async function (candidates) {
+  async deploy(candidates) {
     let totalEndpoints = 0;
     let unreachable = 0;
     let invalid = 0;
@@ -1635,7 +1629,6 @@ const wrapUp = {
       stars: ghStats.stargazers_count,
       issues: ghStats.open_issues_count,
       thisWeek: { added, updated },
-      numDrivers: ng.numDrivers,
       numProviders,
     };
     badges(metrics);
@@ -1755,7 +1748,7 @@ const wrapUp = {
       ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
     }
   },
-  docs: async function (_candidates) {
+  async docs(_candidates) {
     const indexTemplate = await liquidEngine.parse(
       fs.readFileSync(
         path.resolve(__dirname, 'templates', 'index.html'),
@@ -1789,7 +1782,7 @@ const wrapUp = {
       'utf8',
     );
   },
-  update: async function (candidates) {
+  async update(candidates) {
     const services = ng.Tree({});
     for (let candidate of candidates) {
       let key = candidate.provider;
@@ -1832,18 +1825,6 @@ const wrapUp = {
 };
 wrapUp.checkpref = wrapUp.update;
 wrapUp.list = wrapUp.deploy;
-
-async function nop(p) {
-  return p;
-}
-
-function registerCommand(cmd) {
-  const newCmd = Object.assign({}, { pre: nop, run: nop, post: nop }, cmd);
-  startUp[cmd.name] = newCmd.pre;
-  commands[cmd.name] = newCmd.run;
-  wrapUp[cmd.name] = newCmd.post;
-  return newCmd;
-}
 
 async function main(command, pathspec = ng.defaultPathSpec, options) {
   process.exitCode = 99;
@@ -1922,8 +1903,5 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
 
 module.exports = {
   commands,
-  defaultPathSpec: ng.defaultPathSpec,
-  registerDriver: ng.registerDriver,
-  registerCommand,
   main,
 };
