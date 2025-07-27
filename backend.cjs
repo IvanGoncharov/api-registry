@@ -72,7 +72,7 @@ function Tree(base = {}) {
 }
 
 const treeHandler = {
-  get: function (target, key, receiver) {
+  get(target, key, receiver) {
     if (
       !(key in target) &&
       key !== 'toJSON' &&
@@ -227,10 +227,10 @@ const driverFuncs = {
     if (res.ok) {
       const tarx = tar.x({ strip: 1, C: `./metadata/${provider}.cache` });
       const stream = res.body.pipe(tarx);
-      stream.on('warn', function (code, message) {
+      stream.on('warn', (code, message) => {
         logger.warn('tar !', message);
       });
-      stream.on('entry', function (entry) {
+      stream.on('entry', (entry) => {
         if (md.verbose) logger.log('tar x', entry.header.path);
       });
       await new Promise((fulfill) => stream.on('finish', fulfill));
@@ -258,7 +258,7 @@ const driverFuncs = {
         }
         if (md.regex) {
           const re = new RegExp(md.regex, 'gm');
-          service.replace(re, function (match, group1) {
+          service.replace(re, (match, group1) => {
             service = group1;
             return group1;
           });
@@ -445,7 +445,7 @@ async function gather(command, pathspec) {
     await rf(
       pathspec,
       { filter: '**/*.yaml', readContents: true, filenameFormat: rf.FULL_PATH },
-      function (err, filename, content) {
+      (err, filename, content) => {
         if (
           filename.includes('openapi.yaml') ||
           filename.includes('swagger.yaml')

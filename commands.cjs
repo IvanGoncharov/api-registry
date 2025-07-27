@@ -36,9 +36,9 @@ const httpsAgent = new https.Agent({
   lookup: betterLookup,
   rejectUnauthorized: false,
 });
-const bobwAgent = function (parsedURL) {
+function bobwAgent(parsedURL) {
   return parsedURL.protocol === 'http:' ? httpAgent : httpsAgent;
-};
+}
 
 const logoPath = path.resolve('.', 'deploy', 'v2', 'cache', 'logo');
 const logoCache = path.resolve('.', 'metadata', 'logo.cache');
@@ -169,7 +169,7 @@ async function getSocial(candidate) {
     const html = await res.text();
     const $ = cheerio.load(html);
     const meta = {};
-    $('meta').each(function () {
+    $('meta').each(() => {
       const name = $(this).attr('name') || $(this).attr('property');
       const content = $(this).attr('content');
       if (name && content) {
@@ -330,9 +330,7 @@ async function retrieve(u, argv, slow) {
 
   if (argv.provider?.data?.length && Array.isArray(argv.provider.data)) {
     ng.logger.prepend('S');
-    const dataItem = argv.provider.data.find(function (e) {
-      return e.url === u;
-    });
+    const dataItem = argv.provider.data.find((e) => e.url === u);
     if (dataItem) {
       return { response: { ok: true, status: 200 }, text: dataItem.text };
     } else {
@@ -341,7 +339,7 @@ async function retrieve(u, argv, slow) {
         `Could not find ${u} in stored data`,
         ng.colour.normal,
       );
-      argv.provider.data.find(function (e) {
+      argv.provider.data.find((e) => {
         ng.logger.warn('Found', e.url);
       });
       return { response: { ok: false, status: 404 } };
@@ -1209,9 +1207,9 @@ const commands = {
           if (candidate.md.unofficial) o.info['x-unofficialSpec'] = true;
           if (candidate.provider.indexOf('.local') > 0 && !o.swagger) {
             if (!o.servers) o.servers = [];
-            const existing = o.servers.find(function (e) {
-              return e.url.includes(candidate.provider);
-            });
+            const existing = o.servers.find((e) =>
+              e.url.includes(candidate.provider),
+            );
             if (!existing)
               o.servers.unshift({ url: 'http://' + candidate.provider });
           }
@@ -1479,9 +1477,8 @@ const startUp = {
   async validate(candidates) {
     resOpt.resolve = false; // should already have been done
     valOpt.repair = false; // should already have been done
-    return candidates.filter(function (e) {
-      return e.provider !== 'azure.com'; // temp FIXME azure services
-    });
+    // temp FIXME azure services
+    return candidates.filter((e) => e.provider !== 'azure.com');
   },
 };
 
@@ -1647,10 +1644,9 @@ const wrapUp = {
         path.resolve('.', 'deploy', 'v2', `${key}/services.json`),
         JSON.stringify(
           {
-            data: Object.keys(providers.get(key)).map(function (e) {
-              if (e === key) return '';
-              return e.replace(`${key}:`, '');
-            }),
+            data: Object.keys(providers.get(key)).map((e) =>
+              e === key ? '' : e.replace(`${key}:`, ''),
+            ),
           },
           undefined,
           2,
