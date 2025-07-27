@@ -1,11 +1,11 @@
-const assert = require('assert');
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const path = require('path');
-const url = require('url');
-const util = require('util');
-const v8 = process.release.name === 'node' ? require('v8') : undefined;
+const assert = require('node:assert');
+const fs = require('node:fs');
+const http = require('node:http');
+const https = require('node:https');
+const path = require('node:path');
+const url = require('node:url');
+const { promisify } = require('node:util');
+const v8 = process.release.name === 'node' ? require('node:v8') : undefined;
 
 const deepmerge = require('deepmerge');
 const cfetch = require('fetch-filecache-for-crawling');
@@ -23,7 +23,7 @@ const semver = require('semver');
 const google = require('google-discovery-to-swagger');
 const postman = require('postman2openapi');
 const postmanCT = require('postman-collection-transformer');
-const postman1 = util.promisify(postmanCT.convert);
+const postman1 = promisify(postmanCT.convert);
 const fetchFavicon = require('@astridhq/fetch-favicon').fetchFavicon;
 const betterLookup = require('better-lookup').lookup;
 const cheerio = require('cheerio');
@@ -37,11 +37,7 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 const bobwAgent = function (parsedURL) {
-  if (parsedURL.protocol === 'http:') {
-    return httpAgent;
-  } else {
-    return httpsAgent;
-  }
+  return parsedURL.protocol === 'http:' ? httpAgent : httpsAgent;
 };
 
 const logoPath = path.resolve('.', 'deploy', 'v2', 'cache', 'logo');
@@ -138,8 +134,8 @@ function getServer(o, u) {
     assert.ok(o.servers[0], 'Could not determine servers information');
     ou = o.servers[0].url;
     let ok = true;
-    if (ou.indexOf('localhost') >= 0) ok = false;
-    if (ou.indexOf('githubusercontent') >= 0) ok = false;
+    if (ou.includes('localhost')) ok = false;
+    if (ou.includes('githubusercontent')) ok = false;
     assert.ok(ok, `Server must not be in blocklist: ${ou}`);
   }
   if (o.host) {
@@ -158,7 +154,7 @@ function getProvider(u, source) {
   }
   if (typeof domain === 'string') {
     domain = domain.replace('api.', '');
-    if (domain.indexOf('}') >= 0) domain = domain.split('}')[1];
+    if (domain.includes('}')) domain = domain.split('}')[1];
   }
   if (topLevelDomains && topLevelDomains[0] === 'googleapis') {
     return 'googleapis.com'; // FIXME hard-coded to fit in with previous script behaviour
@@ -189,10 +185,10 @@ async function getSocial(candidate) {
     } else if (meta['twitter:image']) {
       return meta['twitter:image'];
     }
-  } catch (ex) {
+  } catch (error) {
     ng.logger.warn(
       ng.colour.red + 'Fetch social',
-      ex.message + ng.colour.normal,
+      error.message + ng.colour.normal,
     );
   }
   try {
@@ -204,10 +200,10 @@ async function getSocial(candidate) {
       candidate.parent.patch.info['x-logo'].url = icon;
       return icon;
     }
-  } catch (ex) {
+  } catch (error) {
     ng.logger.warn(
       ng.colour.red + 'Fetch favicon',
-      ex.message + ng.colour.normal,
+      error.message + ng.colour.normal,
     );
   }
 }
@@ -278,7 +274,7 @@ async function validateObj(o, s, candidate, source) {
         o.info.version = (o.info.version || defaultVersion).toString();
       }
       if (o.info.version.endsWith('.'))
-        o.info.version = o.info.version.substring(0, o.info.version.length - 1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
+        o.info.version = o.info.version.slice(0, -1); // windows can't check these out #974, see ng.cleanseversion should we be doing it there?
     }
     if (o.openapi) {
       // checking openapi property
@@ -293,18 +289,20 @@ async function validateObj(o, s, candidate, source) {
       throw new Error(
         `Validation failure, OpenAPI ${o.openapi || o.swagger || o.swaggerVersion}`,
       );
-  } catch (ex) {
+  } catch (error) {
     ng.logger.log();
     ng.logger.warn(
-      ng.colour.red + (ex.message || 'No exception message') + ng.colour.normal,
+      ng.colour.red +
+        (error.message || 'No exception message') +
+        ng.colour.normal,
     );
-    if (argv.debug) ng.logger.warn(ex);
+    if (argv.debug) ng.logger.warn(error);
     let context;
     if (valOpt.context) {
       context = valOpt.context.pop();
       ng.logger.warn(ng.colour.red + context + ng.colour.normal);
     }
-    ng.fail(candidate, null, ex, context);
+    ng.fail(candidate, undefined, error, context);
   }
   ng.logger.log(
     '',
@@ -330,12 +328,7 @@ async function retrieve(u, argv, slow) {
     u = url.pathToFileURL(argv.cached).toString();
   }
 
-  if (
-    argv.provider &&
-    argv.provider.data &&
-    argv.provider.data.length &&
-    Array.isArray(argv.provider.data)
-  ) {
+  if (argv.provider?.data?.length && Array.isArray(argv.provider.data)) {
     ng.logger.prepend('S');
     const dataItem = argv.provider.data.find(function (e) {
       return e.url === u;
@@ -357,7 +350,7 @@ async function retrieve(u, argv, slow) {
 
   if (u.startsWith('http') || u.startsWith('blob')) {
     ng.logger.prepend('F');
-    const timeout = slow ? 25000 : 15000;
+    const timeout = slow ? 25_000 : 15_000;
     const headers = { Accept: '*/*', 'Accept-Encoding': 'gzip,deflate' };
     if (argv.body) headers['Content-Type'] = 'application/json';
     response = await fetch(u, {
@@ -404,7 +397,7 @@ async function getObjFromText(text, candidate, ct) {
   if (text.startsWith('FORMAT: ')) {
     if (!apiBlueprint) {
       apib2swagger = require('apib2swagger');
-      apiBlueprint = util.promisify(apib2swagger.convert);
+      apiBlueprint = promisify(apib2swagger.convert);
     }
     const result = await apiBlueprint(text, {});
     candidate.md.autoUpgrade = oasDefaultVersion;
@@ -413,7 +406,7 @@ async function getObjFromText(text, candidate, ct) {
     let obj;
     try {
       obj = ng.yamlParse(text);
-    } catch (_err) {
+    } catch {
       ng.logger.warn('Falling back to lenient yaml...');
       try {
         obj = yml.parse(text, {
@@ -421,7 +414,7 @@ async function getObjFromText(text, candidate, ct) {
           loglevel: 'silent',
           prettyErrors: true,
         });
-      } catch (_err) {
+      } catch {
         ng.logger.warn('Failed to parse input as yaml or API Blueprint.');
         if (ct) ng.logger.warn(`Content-Type: ${ct}`);
         process.exitCode = 1;
@@ -438,9 +431,9 @@ function updatePreferredFlag(candidate, flag) {
     api.info['x-preferred'] = flag;
     fs.writeFileSync(candidate.md.filename, ng.yamlStringify(api), 'utf8');
     candidate.md.preferred = flag;
-  } catch (ex) {
-    ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
-    if (argv.debug) ng.logger.warn(ex);
+  } catch (error) {
+    ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
+    if (argv.debug) ng.logger.warn(error);
   }
   return candidate;
 }
@@ -454,7 +447,7 @@ function runGC(snapshot) {
   iteration++;
   if (iteration % 100 === 0) {
     ng.logger.prepend('🗑️');
-    if (global.gc) global.gc();
+    if (globalThis.gc) globalThis.gc();
     if (snapshot) saveHeapSnapshot();
   }
 }
@@ -477,7 +470,7 @@ const commands = {
       .exec(`git log --format=%aD --follow -- '${candidate.md.filename}'`)
       .toString()
       .split('\n');
-    candidate.md.added = new Date(dates[dates.length - 2]);
+    candidate.md.added = new Date(dates.at(-2));
     candidate.md.updated = new Date(dates[0]);
     ng.logger.log('git');
     return true;
@@ -539,7 +532,7 @@ const commands = {
     }
   },
   async 404(candidate) {
-    if (parseInt(candidate.md.statusCode, 10) >= 400) {
+    if (Number.parseInt(candidate.md.statusCode, 10) >= 400) {
       const patch = Object.assign(
         {},
         candidate.parent.patch,
@@ -564,7 +557,7 @@ const commands = {
     }
   },
   async retry(candidate) {
-    if (parseInt(candidate.md.statusCode, 10) >= 400) {
+    if (Number.parseInt(candidate.md.statusCode, 10) >= 400) {
       await commands.update(candidate);
     } else {
       ng.logger.prepend(ng.colour.clear);
@@ -582,11 +575,11 @@ const commands = {
     ng.logger.log('rw');
   },
   async purge(candidate) {
-    if (!fs.existsSync(candidate.md.filename)) {
+    if (fs.existsSync(candidate.md.filename)) {
+      ng.logger.log();
+    } else {
       ng.logger.log(ng.colour.yellow + '␡' + ng.colour.normal);
       delete candidate.parent[candidate.version];
-    } else {
-      ng.logger.log();
     }
   },
   async endpoints(candidate) {
@@ -602,16 +595,16 @@ const commands = {
         ng.colour.green + 'e:' + candidate.md.endpoints,
         ng.colour.normal,
       );
-    } catch (ex) {
-      ng.fail(candidate, null, ex, 'endpoints');
-      ng.logger.log(ng.colour.red + ex.message, ng.colour.normal);
+    } catch (error) {
+      ng.fail(candidate, undefined, error, 'endpoints');
+      ng.logger.log(ng.colour.red + error.message, ng.colour.normal);
     }
   },
   async cache(candidate) {
     let s = fs.readFileSync(candidate.md.filename, 'utf8');
     const o = ng.yamlParse(s);
     const origin = o.info['x-origin'];
-    const source = ng.clone(origin[origin.length - 1]);
+    const source = ng.clone(origin.at(-1));
 
     source.url = source.url.replace(
       'https://raw.githubusercontent.com/NYTimes/public_api_specs/master',
@@ -657,11 +650,11 @@ const commands = {
     try {
       s = fs.readFileSync(candidate.md.filename, 'utf8');
       o = ng.yamlParse(s);
-    } catch (ex) {
-      if (candidate.md.filename.indexOf('azure.com') < 0) {
-        ng.fail(candidate, null, ex, 'deploy');
+    } catch (error) {
+      if (!candidate.md.filename.includes('azure.com')) {
+        ng.fail(candidate, undefined, error, 'deploy');
       }
-      ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
+      ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
     }
     const defaultLogo = 'https://apis.guru/assets/images/no-logo.svg'; // this is ok for generic registries too
     let origLogo = defaultLogo;
@@ -669,16 +662,10 @@ const commands = {
       origLogo = o.info['x-logo'].url;
     }
     let logoName = origLogo
-      .split('://')
-      .join('_')
-      .split('/')
-      .join('_')
+      .replaceAll('://', '_')
+      .replaceAll('/', '_')
       .split('?')[0];
     let logoFull = path.join(logoPath, logoName);
-    while (logoFull.length >= 250) {
-      logoName = logoName.substr(0, logoName.length - 1);
-      logoFull = logoFull.substr(0, logoFull.length - 1);
-    }
     const logoExt =
       candidate.md.logoExt || candidate.parent.logoExt || candidate.gp.logoExt;
     if (typeof logoExt === 'string') {
@@ -700,32 +687,30 @@ const commands = {
         });
         response = await res.buffer();
         const ct = res.headers.get('Content-Type') || '';
-        if (!res.ok || ct.indexOf('image/') < 0) {
+        if (!res.ok || !ct.includes('image/')) {
           throw new Error(`Content-Type: ${ct}`);
         }
         const lnl = logoName.toLowerCase();
-        if (ct.indexOf('image/png') >= 0) {
-          if (lnl.indexOf('.png') < 0) {
-            logoName += '.png';
-            logoFull += '.png';
-          }
+        if (ct.includes('image/png') && !lnl.includes('.png')) {
+          logoName += '.png';
+          logoFull += '.png';
         }
-        if (ct.indexOf('image/svg+xml') >= 0) {
-          if (lnl.indexOf('.svg') < 0) {
-            logoName += '.svg';
-            logoFull += '.svg';
-          }
+        if (ct.includes('image/svg+xml') && !lnl.includes('.svg')) {
+          logoName += '.svg';
+          logoFull += '.svg';
         }
-        if (ct.indexOf('image/jpeg') >= 0) {
-          if (lnl.indexOf('.jpeg') < 0 && lnl.indexOf('.jpg') < 0) {
-            logoName += '.jpeg';
-            logoFull += '.jpeg';
-          }
+        if (
+          ct.includes('image/jpeg') &&
+          !lnl.includes('.jpeg') &&
+          !lnl.includes('.jpg')
+        ) {
+          logoName += '.jpeg';
+          logoFull += '.jpeg';
         }
-      } catch (ex) {
+      } catch (error) {
         colour = ng.colour.yellow;
-        ng.logger.warn(colour + ex.message + ng.colour.normal);
-        if (argv.debug) ng.logger.warn(ex);
+        ng.logger.warn(colour + error.message + ng.colour.normal);
+        if (argv.debug) ng.logger.warn(error);
         const res = await cfetch(defaultLogo, {
           timeout: 3500,
           agent: bobwAgent,
@@ -737,9 +722,9 @@ const commands = {
       if (response) {
         try {
           fs.writeFileSync(logoFull, response);
-        } catch (ex) {
-          ng.fail(candidate, null, ex, 'deploy');
-          ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
+        } catch (error) {
+          ng.fail(candidate, undefined, error, 'deploy');
+          ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
         }
       }
     }
@@ -753,7 +738,7 @@ const commands = {
       candidate.logoUrl = o.info['x-logo'].url;
 
       s = ng.yamlStringify(o);
-      const j = JSON.stringify(o, null, 2);
+      const j = JSON.stringify(o, undefined, 2);
       const filename = candidate.md.filename
         .split('/')
         .pop()
@@ -793,11 +778,9 @@ const commands = {
         'landingPages',
         candidate.provider + '.txt',
       );
-      if (fs.existsSync(landingFile)) {
-        landingText = fs.readFileSync(landingFile, 'utf8');
-      } else {
-        landingText = '';
-      }
+      landingText = fs.existsSync(landingFile)
+        ? fs.readFileSync(landingFile, 'utf8')
+        : '';
       landingPages.set(candidate.provider, landingText);
     }
     const html = await htmlTemplate.render({
@@ -820,9 +803,9 @@ const commands = {
       const valid = await validateObj(o, s, candidate, candidate.md.filename); // can call ng.fail()
       if (!valid) process.exitCode = 1;
       return valid;
-    } catch (ex) {
-      ng.fail(candidate, null, ex, 'validate');
-      ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
+    } catch (error) {
+      ng.fail(candidate, undefined, error, 'validate');
+      ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
     }
   },
   async ci(candidate) {
@@ -837,9 +820,9 @@ const commands = {
         const valid = await validateObj(o, s, candidate, candidate.md.filename); // can call ng.fail()
         if (!valid) process.exitCode = 1;
         return valid;
-      } catch (ex) {
-        ng.fail(candidate, null, ex, 'validate');
-        ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
+      } catch (error) {
+        ng.fail(candidate, undefined, error, 'validate');
+        ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
       }
     } else {
       ng.logger.log(ng.colour.yellow + '🕓' + ng.colour.normal);
@@ -876,9 +859,9 @@ const commands = {
         );
         process.exitCode = 1;
       }
-    } catch (ex) {
-      ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
-      if (argv.debug) ng.logger.warn(ex);
+    } catch (error) {
+      ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
+      if (argv.debug) ng.logger.warn(error);
       process.exitCode = 1;
     }
   },
@@ -908,7 +891,7 @@ const commands = {
         if (valid || argv.force) {
           if (
             valOpt.patches > 0 ||
-            valOpt.convWarn.length ||
+            valOpt.convWarn.length > 0 ||
             candidate.md.autoUpgrade
           ) {
             o = valOpt.openapi;
@@ -920,9 +903,7 @@ const commands = {
           assert.ok(provider, 'Provider not defined');
           const service = argv.service || '';
           candidate.service = service;
-          if (!metadata[provider]) {
-            metadata[provider] = { driver: 'url', apis: {} };
-          } else {
+          if (metadata[provider]) {
             for (let service in metadata[provider].apis) {
               let apis = metadata[provider].apis[service];
               for (let version in apis) {
@@ -931,6 +912,8 @@ const commands = {
                   assert.ok(api.source.url !== u, 'URL already in metadata');
               }
             }
+          } else {
+            metadata[provider] = { driver: 'url', apis: {} };
           }
           if (!metadata[provider].apis[service]) {
             metadata[provider].apis[service] = {};
@@ -958,13 +941,13 @@ const commands = {
               });
               if (
                 res.ok &&
-                res.headers.get('Content-Type').indexOf('image/') >= 0
+                res.headers.get('Content-Type').includes('image/')
               ) {
                 candidate.md.logoMediaType = res.headers.get('Content-Type');
                 gotLogo = true;
                 colour = ng.colour.green;
               }
-            } catch (_err) {
+            } catch {
               /* empty */
             }
             ng.logger.prepend(colour + '📷 ' + ng.colour.normal);
@@ -981,7 +964,7 @@ const commands = {
             candidate.parent.patch.info['x-logo']
           )
             gotLogo = true;
-          if (!gotLogo && provider.indexOf('.local') < 0) {
+          if (!gotLogo && !provider.includes('.local')) {
             const logo = await getSocial(candidate);
             if (logo) {
               gotLogo = true;
@@ -997,7 +980,7 @@ const commands = {
           candidate.md.updated = ng.now;
           candidate.md.history = [];
           candidate.md.fixes = valOpt.patches;
-          if (valOpt.convWarn && valOpt.convWarn.length) {
+          if (valOpt.convWarn && valOpt.convWarn.length > 0) {
             candidate.md.fixes += valOpt.convWarn.length;
           }
           if (org.openapi) {
@@ -1006,14 +989,10 @@ const commands = {
             candidate.md.source.version = majorMinor(org.openapi);
             candidate.md.openapi = o.openapi;
           } else if (org.swagger) {
-            if (o.openapi) {
-              candidate.md.name = 'openapi.yaml';
-            } else {
-              candidate.md.name = 'swagger.yaml';
-            }
+            candidate.md.name = o.openapi ? 'openapi.yaml' : 'swagger.yaml';
             candidate.md.source.format = 'swagger';
             candidate.md.source.version = org.swagger;
-            candidate.md.openapi = o.openapi ? o.openapi : o.swagger;
+            candidate.md.openapi = o.openapi ?? o.swagger;
           } else if (org.asyncapi) {
             candidate.md.name = 'asyncapi.yaml';
             candidate.md.source.format = 'asyncapi';
@@ -1092,7 +1071,7 @@ const commands = {
               o.info['x-description-language'];
           }
 
-          if (Object.keys(patch).length) {
+          if (Object.keys(patch).length > 0) {
             candidate.parent.patch = patch;
           }
           o = deepmerge(o, candidate.gp.patch || {});
@@ -1121,9 +1100,9 @@ const commands = {
           ng.colour.normal,
         );
       }
-    } catch (ex) {
-      ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
-      if (argv.debug) ng.logger.warn(ex);
+    } catch (error) {
+      ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
+      if (argv.debug) ng.logger.warn(error);
     }
   },
   async update(candidate) {
@@ -1158,7 +1137,7 @@ const commands = {
 
           if (
             valOpt.patches > 0 ||
-            valOpt.convWarn.length ||
+            valOpt.convWarn.length > 0 ||
             candidate.md.autoUpgrade
           ) {
             // passed validation as OAS 3 but only by patching the source
@@ -1171,7 +1150,7 @@ const commands = {
             o.info.version = defaultVersion;
           }
 
-          let openapiVer = o.openapi ? o.openapi : o.swagger;
+          let openapiVer = o.openapi ?? o.swagger;
           const newVersion = o.info
             ? ng.cleanseVersion(o.info.version)
             : defaultVersion;
@@ -1216,9 +1195,9 @@ const commands = {
 
           if (o.info['x-apisguru-categories']) {
             // deduplicate categories array
-            o.info['x-apisguru-categories'] = Array.from(
-              new Set(o.info['x-apisguru-categories']),
-            );
+            o.info['x-apisguru-categories'] = [
+              ...new Set(o.info['x-apisguru-categories']),
+            ];
           }
           o.info['x-providerName'] = candidate.provider;
           const origin = ng.clone(candidate.md.history);
@@ -1228,15 +1207,13 @@ const commands = {
           if (typeof candidate.md.preferred === 'boolean')
             o.info['x-preferred'] = candidate.md.preferred;
           if (candidate.md.unofficial) o.info['x-unofficialSpec'] = true;
-          if (candidate.provider.indexOf('.local') > 0) {
-            if (!o.swagger) {
-              if (!o.servers) o.servers = [];
-              const existing = o.servers.find(function (e) {
-                return e.url.indexOf(candidate.provider) >= 0;
-              });
-              if (!existing)
-                o.servers.unshift({ url: 'http://' + candidate.provider });
-            }
+          if (candidate.provider.indexOf('.local') > 0 && !o.swagger) {
+            if (!o.servers) o.servers = [];
+            const existing = o.servers.find(function (e) {
+              return e.url.includes(candidate.provider);
+            });
+            if (!existing)
+              o.servers.unshift({ url: 'http://' + candidate.provider });
           }
 
           const content = ng.yamlStringify(ng.sortJson(o));
@@ -1248,7 +1225,7 @@ const commands = {
           }
           candidate.md.endpoints = countEndpoints(o);
           candidate.md.fixes = valOpt.patches;
-          if (valOpt.convWarn && valOpt.convWarn.length) {
+          if (valOpt.convWarn && valOpt.convWarn.length > 0) {
             candidate.md.fixes += valOpt.convWarn.length;
           }
           if (autoUpgrade) {
@@ -1286,23 +1263,28 @@ const commands = {
         );
         return false;
       }
-    } catch (ex) {
-      if (ex.timings) delete ex.timings;
+    } catch (error) {
+      if (error.timings) delete error.timings;
       ng.logger.log();
       ng.logger.warn(
-        ng.colour.red + ex.message,
-        ex.response ? httpStatus(ex.response.statusCode) : '',
+        ng.colour.red + error.message,
+        error.response ? httpStatus(error.response.statusCode) : '',
         ng.colour.normal,
       );
-      if (argv.debug || !ex.message) ng.logger.warn(ex);
-      let r = ex.response;
+      if (argv.debug || !error.message) ng.logger.warn(error);
+      let r = error.response;
       if (r) {
         candidate.md.statusCode = r.status;
         if (r.headers) {
           candidate.md.mediatype = r.headers.get('content-type');
         }
       }
-      ng.fail(candidate, r ? r.status : undefined, ex, candidate.md.mediatype);
+      ng.fail(
+        candidate,
+        r ? r.status : undefined,
+        error,
+        candidate.md.mediatype,
+      );
       return false;
     }
     return true;
@@ -1311,7 +1293,7 @@ const commands = {
     ng.logger.log(ng.colour.red + '␡' + ng.colour.normal);
     try {
       ng.exec(`rm ${candidate.md.filename}`); // TODO use shelljs ?
-    } catch (_err) {
+    } catch {
       /* empty */
     }
     delete metadata[candidate.provider].apis[candidate.service][
@@ -1373,12 +1355,12 @@ function rssFeed(data, updated) {
       if (p.info['x-logo']) {
         i.enclosure = {};
         i.enclosure['@url'] = p.info['x-logo'].url;
-        i.enclosure['@length'] = 15026;
+        i.enclosure['@length'] = 15_026;
         i.enclosure['@type'] = 'image/jpeg';
         if (typeof i.enclosure['@url'] === 'string') {
           let tmp = i.enclosure['@url'].toLowerCase();
-          if (tmp.indexOf('.png') >= 0) i.enclosure['@type'] = 'image/png';
-          if (tmp.indexOf('.svg') >= 0) i.enclosure['@type'] = 'image/svg+xml';
+          if (tmp.includes('.png')) i.enclosure['@type'] = 'image/png';
+          if (tmp.includes('.svg')) i.enclosure['@type'] = 'image/svg+xml';
         } else ng.logger.warn(api, i.enclosure['@url']);
       }
 
@@ -1539,7 +1521,7 @@ const wrapUp = {
       if (new Date(candidate.md.added) >= ng.weekAgo) added++;
       if (new Date(candidate.md.updated) >= ng.weekAgo) updated++;
       if (candidate.md.statusCode) {
-        const range = candidate.md.statusCode.toString().substr(0, 1);
+        const range = candidate.md.statusCode.toString().slice(0, 1);
         if (range === '4' || range === '5') {
           unreachable++;
         }
@@ -1594,7 +1576,7 @@ const wrapUp = {
       providers.get(candidate.provider)[key] = listEntry;
       fs.writeFileSync(
         `${apiPath}/${apiFile}`,
-        JSON.stringify(listEntry, null, 2),
+        JSON.stringify(listEntry, undefined, 2),
         'utf8',
       );
     }
@@ -1624,7 +1606,7 @@ const wrapUp = {
       invalid,
       unofficial,
       fixes,
-      fixedPct: Math.round((fixed / compare) * 100.0),
+      fixedPct: Math.round((fixed / compare) * 100),
       datasets,
       stars: ghStats.stargazers_count,
       issues: ghStats.open_issues_count,
@@ -1635,7 +1617,7 @@ const wrapUp = {
 
     fs.writeFileSync(
       path.resolve('.', 'deploy', 'v2', 'list.json'),
-      JSON.stringify(list, null, 2),
+      JSON.stringify(list, undefined, 2),
       'utf8',
     );
     fs.writeFileSync(
@@ -1645,19 +1627,19 @@ const wrapUp = {
     );
     fs.writeFileSync(
       path.resolve('.', 'deploy', 'v2', 'metrics.json'),
-      JSON.stringify(metrics, null, 2),
+      JSON.stringify(metrics, undefined, 2),
       'utf8',
     );
     fs.writeFileSync(
       path.resolve('.', 'deploy', 'v2', 'providers.json'),
-      JSON.stringify({ data: Array.from(providers.keys()) }, null, 2),
+      JSON.stringify({ data: [...providers.keys()] }, undefined, 2),
       'utf8',
     );
 
     for (let [key, value] of providers) {
       fs.writeFileSync(
         path.resolve('.', 'deploy', 'v2', `${key}.json`),
-        JSON.stringify({ apis: value }, null, 2),
+        JSON.stringify({ apis: value }, undefined, 2),
         'utf8',
       );
       await mkdirp(path.resolve('.', 'deploy', 'v2', key));
@@ -1670,7 +1652,7 @@ const wrapUp = {
               return e.replace(`${key}:`, '');
             }),
           },
-          null,
+          undefined,
           2,
         ),
         'utf8',
@@ -1744,8 +1726,8 @@ const wrapUp = {
         'utf8',
       );
       fs.writeFileSync(path.resolve('.', 'deploy', 'logo.svg'), logo, 'utf8');
-    } catch (ex) {
-      ng.logger.warn(ng.colour.red + ex.message + ng.colour.normal);
+    } catch (error) {
+      ng.logger.warn(ng.colour.red + error.message + ng.colour.normal);
     }
   },
   async docs(_candidates) {
@@ -1807,7 +1789,7 @@ const wrapUp = {
       }
       if (Object.keys(versions).length === 1) {
         let candidate = versions[preferredVersion];
-        updatePreferredFlag(candidate, undefined);
+        updatePreferredFlag(candidate);
       }
       if (Object.keys(versions).length > 1) {
         // && (numPreferred !== 1)) {
@@ -1851,7 +1833,7 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
   await ng.runDrivers(argv);
   const leads = ng.trimLeads(candidates); // do here for preferred flags
 
-  if (command === 'update' && Object.keys(leads).length) {
+  if (command === 'update' && Object.keys(leads).length > 0) {
     for (let u in leads) {
       argv.service = leads[u].service;
       if (leads[u].file) {
@@ -1893,7 +1875,7 @@ async function main(command, pathspec = ng.defaultPathSpec, options) {
   }
 
   if (wrapUp[command]) {
-    if (newCandidates.length) await wrapUp[command](newCandidates);
+    if (newCandidates.length > 0) await wrapUp[command](newCandidates);
     await wrapUp[command](candidates);
   }
 
